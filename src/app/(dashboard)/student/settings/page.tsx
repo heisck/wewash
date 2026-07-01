@@ -19,12 +19,12 @@ export default function SettingsPage() {
   const [contractOpen, setContractOpen] = useState(false);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-0">
+    <div className="max-w-3xl mx-auto space-y-0 pb-12">
 
-      {/* Banner + Profile Header */}
-      <Card className="rounded-none sm:rounded-t-none border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden -mx-6 sm:-mx-8 md:mx-0 md:rounded-b-3xl">
+      {/* Profile Header (Flat Banner) */}
+      <div className="overflow-hidden -mx-6 sm:-mx-8 md:mx-0">
         {/* Cover Banner */}
-        <div className="h-32 sm:h-40 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 relative">
+        <div className="h-32 sm:h-40 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 relative rounded-2xl">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiLz48L3N2Zz4=')] opacity-50" />
           <button className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors cursor-pointer border border-white/20">
             <Camera className="h-3.5 w-3.5" />
@@ -32,15 +32,15 @@ export default function SettingsPage() {
         </div>
 
         {/* Profile Info Row */}
-        <div className="px-6 pb-6 -mt-10 sm:-mt-12">
+        <div className="px-6 sm:px-0 pb-6 -mt-10 sm:-mt-12">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4">
             {/* Avatar */}
             <div className="relative">
-              <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-4 border-white dark:border-slate-900 shadow-lg">
+              <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-4 border-slate-50 dark:border-[#10141e] shadow-lg">
                 <AvatarImage src="https://github.com/shadcn.png" alt="@student" />
                 <AvatarFallback className="bg-blue-100 text-blue-700 font-bold text-2xl">JD</AvatarFallback>
               </Avatar>
-              <button className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-[#2563eb] text-white flex items-center justify-center shadow-md border-2 border-white dark:border-slate-900 cursor-pointer hover:bg-[#1d4ed8] transition-colors">
+              <button className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-[#2563eb] text-white flex items-center justify-center shadow-md border-2 border-slate-50 dark:border-[#10141e] cursor-pointer hover:bg-[#1d4ed8] transition-colors">
                 <Camera className="h-3 w-3" />
               </button>
             </div>
@@ -49,81 +49,78 @@ export default function SettingsPage() {
             <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 sm:pt-0 sm:pb-1">
               <div>
                 <h1 className="text-lg font-black text-slate-900 dark:text-white">Profile</h1>
-                <p className="text-xs text-slate-400 font-semibold">Update your photo and personal details.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" className="rounded-lg text-xs font-bold h-9 px-4 border-slate-200 dark:border-slate-700">Cancel</Button>
-                <Button className="rounded-lg text-xs font-bold h-9 px-5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white">Save</Button>
               </div>
             </div>
           </div>
         </div>
-      </Card>
+      </div>
 
-      {/* Form Fields */}
-      <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-6 mt-6">
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+      {/* Line Space Divider 1 */}
+      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
 
-          {/* Full Name */}
-          <FormRow label="Full name" sublabel="">
-            <div className="flex gap-3 w-full">
-              <Input defaultValue="John" className="flex-1 rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700" />
-              <Input defaultValue="Doe" className="flex-1 rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700" />
+      {/* Form Fields (Flat, no card wrapper) */}
+      <div className="divide-y divide-slate-200 dark:divide-slate-800">
+        {/* Full Name */}
+        <FormRow label="Full name" sublabel="">
+          <div className="flex gap-3 w-full">
+            <Input defaultValue="John" className="flex-1 rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" />
+            <Input defaultValue="Doe" className="flex-1 rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" />
+          </div>
+        </FormRow>
+
+        {/* Email */}
+        <FormRow label="Email address">
+          <Input defaultValue="john.doe@uni.edu.gh" className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" />
+        </FormRow>
+
+        {/* Phone */}
+        <FormRow label="Phone number">
+          <Input defaultValue="+233 24 123 4567" className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" />
+        </FormRow>
+
+        {/* Your Photo */}
+        <FormRow label="Your photo" sublabel="This will be displayed on your profile.">
+          <div className="flex items-center gap-4 w-full">
+            <Avatar className="h-12 w-12 border border-slate-200 dark:border-slate-700 shrink-0">
+              <AvatarImage src="https://github.com/shadcn.png" alt="@student" />
+              <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">JD</AvatarFallback>
+            </Avatar>
+            <div className="flex items-center gap-3">
+              <button className="text-xs font-bold text-slate-500 hover:text-red-500 transition-colors cursor-pointer">Delete</button>
+              <button className="text-xs font-bold text-[#2563eb] hover:text-[#1d4ed8] transition-colors cursor-pointer">Update</button>
             </div>
-          </FormRow>
+          </div>
+        </FormRow>
 
-          {/* Email */}
-          <FormRow label="Email address">
-            <Input defaultValue="john.doe@uni.edu.gh" className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700" />
-          </FormRow>
+        {/* Room */}
+        <FormRow label="Room">
+          <Input defaultValue="Room 104" disabled className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50" />
+        </FormRow>
 
-          {/* Phone */}
-          <FormRow label="Phone number">
-            <Input defaultValue="+233 24 123 4567" className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700" />
-          </FormRow>
+        {/* Hall */}
+        <FormRow label="Hall">
+          <Input defaultValue="Atlantic Hall, Floor 1" disabled className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50" />
+        </FormRow>
 
-          {/* Your Photo */}
-          <FormRow label="Your photo" sublabel="This will be displayed on your profile.">
-            <div className="flex items-center gap-4 w-full">
-              <Avatar className="h-12 w-12 border border-slate-200 dark:border-slate-700 shrink-0">
-                <AvatarImage src="https://github.com/shadcn.png" alt="@student" />
-                <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">JD</AvatarFallback>
-              </Avatar>
-              <div className="flex items-center gap-3">
-                <button className="text-xs font-bold text-slate-500 hover:text-red-500 transition-colors cursor-pointer">Delete</button>
-                <button className="text-xs font-bold text-[#2563eb] hover:text-[#1d4ed8] transition-colors cursor-pointer">Update</button>
-              </div>
-            </div>
-          </FormRow>
+        {/* Student ID */}
+        <FormRow label="Student ID">
+          <Input defaultValue="STU-2026-0104" disabled className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50" />
+        </FormRow>
+      </div>
 
-          {/* Room */}
-          <FormRow label="Room">
-            <Input defaultValue="Room 104" disabled className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50" />
-          </FormRow>
+      {/* Line Space Divider 2 */}
+      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
 
-          {/* Hall */}
-          <FormRow label="Hall">
-            <Input defaultValue="Atlantic Hall, Floor 1" disabled className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50" />
-          </FormRow>
-
-          {/* Student ID */}
-          <FormRow label="Student ID">
-            <Input defaultValue="STU-2026-0104" disabled className="w-full rounded-lg h-10 text-sm border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50" />
-          </FormRow>
-
-        </div>
-      </Card>
-
-      {/* Notification Preferences — Collapsible */}
-      <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs mt-6 overflow-hidden">
+      {/* Notification Preferences — Collapsible Flat Trigger */}
+      <div>
         <button
           type="button"
           onClick={() => setNotifOpen(!notifOpen)}
-          className="w-full flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
+          className="w-full flex items-center justify-between py-4 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors"
         >
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full flex items-center justify-center bg-blue-50 dark:bg-blue-950/30 shrink-0">
-              <Bell className="h-4 w-4 text-[#2563eb]" />
+            <div className="h-9 w-9 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 shrink-0">
+              <Bell className="h-4 w-4 text-slate-500" />
             </div>
             <div className="text-left">
               <h2 className="text-sm font-black text-slate-900 dark:text-white">Notification Preferences</h2>
@@ -133,8 +130,8 @@ export default function SettingsPage() {
           <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${notifOpen ? "rotate-180" : ""}`} />
         </button>
 
-        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${notifOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}>
-          <div className="px-6 pb-6 space-y-4">
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${notifOpen ? "max-h-[500px] opacity-100 mt-4" : "max-h-0 opacity-0"}`}>
+          <div className="space-y-4">
             <ToggleRow
               icon={MessageSquare}
               title="SMS Notifications"
@@ -158,18 +155,21 @@ export default function SettingsPage() {
             />
           </div>
         </div>
-      </Card>
+      </div>
 
-      {/* Contract Info — Collapsible */}
-      <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs mt-4 overflow-hidden">
+      {/* Line Space Divider 3 */}
+      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
+
+      {/* Contract Info — Collapsible Flat Trigger */}
+      <div>
         <button
           type="button"
           onClick={() => setContractOpen(!contractOpen)}
-          className="w-full flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
+          className="w-full flex items-center justify-between py-4 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors"
         >
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full flex items-center justify-center bg-green-50 dark:bg-green-950/30 shrink-0">
-              <Building className="h-4 w-4 text-green-600" />
+            <div className="h-9 w-9 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 shrink-0">
+              <Building className="h-4 w-4 text-slate-500" />
             </div>
             <div className="text-left">
               <h2 className="text-sm font-black text-slate-900 dark:text-white">Contract Details</h2>
@@ -179,18 +179,16 @@ export default function SettingsPage() {
           <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${contractOpen ? "rotate-180" : ""}`} />
         </button>
 
-        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${contractOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}>
-          <div className="px-6 pb-6">
-            <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 space-y-3">
-              <ContractRow label="Status" value={<Badge className="bg-green-50 text-green-600 dark:bg-green-950/30 text-[8px] rounded-full font-bold px-2 py-0.5 border border-green-200/20">Active</Badge>} />
-              <ContractRow label="Period" value="Oct 2026 – Feb 2027" />
-              <ContractRow label="Weekly Rate" value="GHS 35.00" bold />
-              <ContractRow label="Rotation Group" value="Group 1 (7 rooms)" />
-              <ContractRow label="Machine" value={<span className="text-[#2563eb]">WEWASH-W01-ATL</span>} />
-            </div>
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${contractOpen ? "max-h-[400px] opacity-100 mt-4" : "max-h-0 opacity-0"}`}>
+          <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 space-y-3">
+            <ContractRow label="Status" value={<Badge className="bg-green-50 text-green-600 dark:bg-green-950/30 text-[8px] rounded-full font-bold px-2 py-0.5 border border-green-200/20">Active</Badge>} />
+            <ContractRow label="Period" value="Oct 2026 – Feb 2027" />
+            <ContractRow label="Weekly Rate" value="GHS 35.00" bold />
+            <ContractRow label="Rotation Group" value="Group 1 (7 rooms)" />
+            <ContractRow label="Machine" value={<span className="text-[#2563eb]">WEWASH-W01-ATL</span>} />
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import { Draggable } from "gsap/Draggable";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(Draggable);
+}
 import {
   Bell, Calendar, CreditCard, Droplet, FileWarning, LogOut,
   Settings, Info, AlertTriangle, ShieldCheck, ArrowRight, Sparkles,
   ChevronRight, TrendingUp, HelpCircle, Lock, Search, Plus, Mic,
-  WrenchIcon, Smile, Meh, Frown, Heart, Star, Wrench, Activity, ScanLine
+  WrenchIcon, Smile, Meh, Frown, Heart, Star, Wrench, Activity, ScanLine, MessageSquare
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -39,6 +46,108 @@ export default function StudentDashboard() {
     { title: "Setup Fee Paid", detail: "GHS 50.00 manual registration", date: "Oct 1, 2026" },
     { title: "Washing Contract Signed", detail: "Valid for Fall Semester 2026", date: "Oct 1, 2026" },
   ]);
+  const [feedbackRating, setFeedbackRating] = useState<"frown" | "meh" | "smile" | "heart" | "star">("smile");
+  const [isFeedbackCollapsed, setIsFeedbackCollapsed] = useState(false);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  const dividerRef = useRef<HTMLDivElement>(null);
+  const tabRef = useRef<HTMLButtonElement>(null);
+
+  useGSAP(() => {
+    if (isFeedbackCollapsed) {
+      // Collapse card & divider
+      gsap.to(cardRef.current, {
+        height: 0,
+        opacity: 0,
+        scale: 0.9,
+        y: 20,
+        duration: 0.4,
+        ease: "power2.inOut",
+        onComplete: () => {
+          if (cardRef.current) cardRef.current.style.display = "none";
+        }
+      });
+      gsap.to(dividerRef.current, {
+        opacity: 0,
+        duration: 0.3,
+        ease: "power2.inOut",
+        onComplete: () => {
+          if (dividerRef.current) dividerRef.current.style.display = "none";
+        }
+      });
+      // Show tab
+      gsap.fromTo(tabRef.current, 
+        { opacity: 0, scale: 0, x: 50 },
+        { 
+          display: "flex",
+          opacity: 1, 
+          scale: 1, 
+          x: 0,
+          duration: 0.4, 
+          delay: 0.2,
+          ease: "back.out(1.5)",
+          pointerEvents: "auto"
+        }
+      );
+    } else {
+      // Hide tab
+      gsap.to(tabRef.current, {
+        opacity: 0,
+        scale: 0,
+        x: 50,
+        duration: 0.3,
+        ease: "power2.inOut",
+        pointerEvents: "none",
+        onComplete: () => {
+          if (tabRef.current) tabRef.current.style.display = "none";
+        }
+      });
+      // Show card & divider
+      if (cardRef.current) {
+        cardRef.current.style.display = "flex";
+        gsap.to(cardRef.current, {
+          height: "auto",
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          duration: 0.5,
+          ease: "back.out(1.2)"
+        });
+      }
+      if (dividerRef.current) {
+        dividerRef.current.style.display = "block";
+        gsap.to(dividerRef.current, {
+          opacity: 1,
+          duration: 0.3,
+          ease: "power2.inOut"
+        });
+      }
+    }
+  }, [isFeedbackCollapsed]);
+
+  useGSAP(() => {
+    if (tabRef.current) {
+      Draggable.create(tabRef.current, {
+        type: "y",
+        bounds: window,
+        edgeResistance: 0.65,
+        onClick: () => {
+          setIsFeedbackCollapsed(false);
+        }
+      });
+    }
+  }, []);
+
+  const feedbackConfig = {
+    frown: { Icon: Frown, label: "Could be better", color: "text-red-500" },
+    meh: { Icon: Meh, label: "Just okay", color: "text-amber-500" },
+    smile: { Icon: Smile, label: "Smooth & Clean", color: "text-blue-500" },
+    heart: { Icon: Heart, label: "Loved the service!", color: "text-rose-500 animate-pulse" },
+    star: { Icon: Star, label: "Excellent experience!", color: "text-yellow-500" }
+  };
+
+  const activeFeedback = feedbackConfig[feedbackRating];
+  const FeedbackIcon = activeFeedback.Icon;
 
   const handleReportFault = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,9 +168,9 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-0">
       {/* 2. Sub-Header Row */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 w-full">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-10 w-full">
         {/* Left Side: Date widget & Fault dialog trigger - Always on one line, shrinking responsively */}
         <div className="flex flex-nowrap items-center gap-2 sm:gap-4 w-full lg:w-auto min-w-0">
           {/* Day number Circle */}
@@ -159,10 +268,13 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      {/* 3. Content Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-6">
-        {/* Unified Active Appliance Dial (col-span-9) - Frameless */}
-        <div className="col-span-12 relative min-h-[280px] sm:min-h-[340px] flex items-center justify-center">
+      {/* Edge-to-edge divider 1 */}
+      <div className="border-t border-slate-200 dark:border-slate-800 -mx-6 md:-mx-8" />
+
+      {/* Section 2: Active Appliance Clock/Dial */}
+      <div className="py-12 w-full">
+        {/* Unified Active Appliance Dial - Frameless */}
+        <div className="relative min-h-[280px] sm:min-h-[340px] flex items-center justify-center">
 
           {/* Top Left Identifiers */}
           <div className="absolute top-6 left-6 z-20">
@@ -256,33 +368,72 @@ export default function StudentDashboard() {
 
           </div>
         </div>
-
-
-        {/* Card: Rating Feedback */}
-        <Card className="col-span-12 max-w-lg mx-auto shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-8 flex flex-col justify-between min-h-[340px] w-full">
-          <div className="flex justify-between items-start">
-            <div className="space-y-1">
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Hostel Feedback</h3>
-              <p className="text-xs text-slate-400 font-semibold leading-normal">How was your laundry experience today?</p>
-            </div>
-            <button className="text-slate-400 hover:text-slate-600 text-lg">×</button>
-          </div>
-
-          <div className="bg-slate-50 dark:bg-slate-800/30 border rounded-2xl p-6 flex flex-col items-center justify-center my-4">
-            <Smile className="h-14 w-14 text-blue-400 animate-bounce" />
-            <p className="text-sm font-extrabold text-slate-800 dark:text-slate-200 mt-3">Smooth & Clean</p>
-            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Feedback by John Doe</p>
-          </div>
-
-          <div className="flex justify-center items-center gap-3">
-            <button className="h-10 w-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer transition-colors"><Frown className="h-5 w-5" /></button>
-            <button className="h-10 w-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer transition-colors"><Meh className="h-5 w-5" /></button>
-            <button className="h-10 w-10 bg-[#2563eb] text-white rounded-full flex items-center justify-center cursor-pointer shadow-md shadow-blue-500/20"><Smile className="h-5 w-5" /></button>
-            <button className="h-10 w-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer transition-colors"><Heart className="h-5 w-5" /></button>
-            <button className="h-10 w-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer transition-colors"><Star className="h-5 w-5" /></button>
-          </div>
-        </Card>
       </div>
+
+      {/* Edge-to-edge divider 2 */}
+      <div ref={dividerRef} className="border-t border-slate-200 dark:border-slate-800 -mx-6 md:-mx-8" />
+
+      {/* Card: Rating Feedback */}
+      <Card ref={cardRef} className="max-w-lg mx-auto shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-8 flex flex-col justify-between min-h-[340px] w-full my-12">
+        <div className="flex justify-between items-start">
+          <div className="space-y-1">
+            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Hostel Feedback</h3>
+            <p className="text-xs text-slate-400 font-semibold leading-normal">How was your laundry experience today?</p>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setIsFeedbackCollapsed(true)} 
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg cursor-pointer transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="bg-slate-50 dark:bg-slate-800/30 border rounded-2xl p-6 flex flex-col items-center justify-center my-4 min-h-[140px] transition-all duration-300">
+          <FeedbackIcon className={`h-14 w-14 transition-transform duration-300 scale-110 ${activeFeedback.color} ${feedbackRating === "smile" ? "animate-bounce" : ""}`} />
+          <p className="text-sm font-extrabold text-slate-800 dark:text-slate-200 mt-3 transition-all duration-300">{activeFeedback.label}</p>
+          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Feedback by John Doe</p>
+        </div>
+
+        <div className="flex justify-center items-center gap-3">
+          {(["frown", "meh", "smile", "heart", "star"] as const).map((type) => {
+            const ButtonIcon = feedbackConfig[type].Icon;
+            const isActive = feedbackRating === type;
+            const activeColors: Record<typeof type, string> = {
+              frown: "bg-red-500 text-white shadow-red-500/20",
+              meh: "bg-amber-500 text-white shadow-amber-500/20",
+              smile: "bg-blue-600 text-white shadow-blue-500/20",
+              heart: "bg-rose-500 text-white shadow-rose-500/20",
+              star: "bg-yellow-500 text-slate-900 shadow-yellow-500/20"
+            };
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setFeedbackRating(type)}
+                className={`h-10 w-10 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                  isActive 
+                    ? `${activeColors[type]} shadow-md scale-110` 
+                    : "bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
+                }`}
+              >
+                <ButtonIcon className="h-5 w-5" />
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Floating Collapsed Tab */}
+      <button
+        ref={tabRef}
+        type="button"
+        className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-[#2563eb] text-white p-3 pl-4 pr-3 rounded-l-full rounded-r-none shadow-lg cursor-pointer flex items-center gap-2 hover:bg-[#1d4ed8] transition-colors"
+        style={{ display: "none", opacity: 0 }}
+      >
+        <MessageSquare className="h-4 w-4" />
+        <span className="text-xs font-bold">Feedback</span>
+      </button>
     </div>
   );
 }

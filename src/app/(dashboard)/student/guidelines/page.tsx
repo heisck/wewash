@@ -31,7 +31,6 @@ export default function GuidelinesPage() {
       {/* Header */}
       <div>
         <h1 className="text-lg font-black text-slate-900 dark:text-white">Appliance Guide</h1>
-        <p className="text-xs text-slate-400 font-semibold mt-0.5">Everything you need to know about using and moving the shared washing machine.</p>
       </div>
 
       {/* Care Rules */}
