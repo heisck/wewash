@@ -12,7 +12,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { 
   LayoutDashboard, CreditCard, Info, 
-  LogOut, Droplet 
+  LogOut, Droplet, Bell 
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -115,12 +115,20 @@ export default function StudentLayout({
           {/* Main Content Area */}
           <SidebarInset className="flex-1 flex flex-col min-w-0">
             {/* Top Toolbar */}
-            <header className="h-16 flex items-center px-6 border-b border-slate-200/50 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xs sticky top-0 z-20">
-              <SidebarTrigger className="mr-4 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer" />
-              <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 mr-4" />
-              <div className="text-xs text-muted-foreground font-medium hidden sm:block">
-                Atlantic Hall Floor 1 • Subscribed
+            <header className="h-16 flex items-center justify-between px-6 border-b border-slate-200/50 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xs sticky top-0 z-20">
+              <div className="flex items-center">
+                <SidebarTrigger className="mr-4 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer" />
+                <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 mr-4" />
+                <div className="text-xs text-muted-foreground font-medium hidden sm:block">
+                  Atlantic Hall Floor 1 • Subscribed
+                </div>
               </div>
+              
+              {/* Notification bell on the far right */}
+              <button className="h-9 w-9 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-full flex items-center justify-center cursor-pointer relative shadow-xs hover:bg-slate-50 dark:hover:bg-slate-850 transition-all shrink-0">
+                <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-red-500" />
+              </button>
             </header>
 
             {/* Sub-page Content */}

@@ -9,6 +9,15 @@ import {
   ChevronRight, TrendingUp, HelpCircle, Lock, Search, Plus, Mic,
   WrenchIcon, Smile, Meh, Frown, Heart, Star, Wrench, Activity
 } from "lucide-react";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +61,7 @@ export default function StudentDashboard() {
   return (
     <div className="space-y-6">
       {/* 2. Sub-Header Row */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-2">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6">
         {/* Left Side: Date widget & Fault dialog trigger */}
         <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
           {/* Day number Circle */}
@@ -71,7 +80,7 @@ export default function StudentDashboard() {
           {/* Coral pill CTA button (Report Fault) */}
           <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
             <DialogTrigger
-              className="bg-[#F05A3E] hover:bg-[#d9482d] text-white rounded-full px-6 h-11 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-orange-500/10 ml-0 sm:ml-4"
+              className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full px-6 h-11 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/10 ml-0 sm:ml-4"
             >
               Report Fault <ArrowRight className="h-3.5 w-3.5" />
             </DialogTrigger>
@@ -138,109 +147,85 @@ export default function StudentDashboard() {
             </DialogContent>
           </Dialog>
 
-          {/* Small notification indicator */}
-          <button className="h-10 w-10 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-full flex items-center justify-center cursor-pointer relative shadow-xs">
-            <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-            <span className="absolute top-2.5 right-2.5 h-1.5 w-1.5 rounded-full bg-red-500" />
-          </button>
-        </div>
+          {/* Payments Tracker Dropdown Quick Action */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button 
+                  variant="outline" 
+                  className="border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-full px-5 h-11 font-bold text-xs flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-200 shadow-xs bg-white dark:bg-slate-900 ml-2"
+                />
+              }
+            >
+              <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              Dues & Payments ▾
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 p-2 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200/50 dark:border-slate-850">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2.5 py-1.5">
+                  Payments Status
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="my-1 border-slate-100 dark:border-slate-800" />
+                <DropdownMenuItem className="flex items-center justify-between px-2.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white">Weekly Dues</p>
+                    <p className="text-[9px] text-slate-400">GHS 35.00</p>
+                  </div>
+                  <span className="text-[9px] font-extrabold text-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-200/10">Completed</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex items-center justify-between px-2.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white">One-time Setup</p>
+                    <p className="text-[9px] text-slate-400">GHS 50.00</p>
+                  </div>
+                  <span className="text-[9px] font-extrabold text-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-200/10">Completed</span>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator className="my-1 border-slate-100 dark:border-slate-800" />
+              <DropdownMenuItem 
+                render={
+                  <a href="#billing" className="w-full text-[10px] font-bold text-[#2563eb] hover:underline px-2.5 py-1.5 flex items-center justify-between" />
+                }
+              >
+                <span>View receipt log</span>
+                <ArrowRight className="h-3 w-3" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        {/* Right Side: Welcome message & microphone */}
-        <div className="flex items-center justify-between lg:justify-end gap-6 w-full lg:w-auto">
-          <div className="text-left lg:text-right">
-            <h1 className="text-2xl font-black text-slate-950 dark:text-white leading-none">
-              Hey John, need help? 👋
-            </h1>
-            <p className="text-base text-slate-400 font-bold tracking-tight mt-1">
-              Just ask me anything!
-            </p>
-          </div>
-          {/* Mic Circle button */}
-          <button className="h-12 w-12 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center cursor-pointer shadow-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800">
-            <Mic className="h-5 w-5" />
-          </button>
         </div>
       </div>
 
       {/* 3. Content Grid */}
       <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-6">
-              {/* Card 1: Toolbar + VISA style machine status (col-span-4) */}
-        <div className="col-span-12 lg:col-span-4 flex gap-4 h-[230px]">
-          {/* Left Vertical Toolbar from Mockup */}
-          <div className="w-12 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-full py-5 flex flex-col items-center justify-between h-full shrink-0 shadow-xs">
-            <div className="h-6 w-1.5 bg-[#F05A3E] rounded-full" />
-            <button className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-[#F05A3E] hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-              <Plus className="h-4 w-4" />
-            </button>
-            <button className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-[#F05A3E] hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 10.742l4.828-2.414m0 0a3 3 0 100-5.836 3 3 0 000 5.836zm-4.828 2.414a3 3 0 11-5.656 0 3 3 0 015.656 0zm0 0l4.828 2.414a3 3 0 11-4.828 2.414 3 3 0 014.828-2.414z" /></svg>
-            </button>
+        {/* Card 1: VISA style machine status (col-span-6) */}
+        <Card className="col-span-12 lg:col-span-6 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-[230px]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ACTIVE APPLIANCE</span>
+              <Badge className="bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 rounded-full px-2 py-0.5 text-[9px] font-bold">
+                Room 104 today ▾
+              </Badge>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-semibold leading-none">Rotation Group 1</p>
+              <h3 className="text-base font-black text-slate-950 dark:text-white mt-1.5 truncate">WEWASH-W01-ATL</h3>
+            </div>
           </div>
-          
-          <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-full">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ACTIVE APPLIANCE</span>
-                <Badge className="bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 rounded-full px-2 py-0.5 text-[9px] font-bold">
-                  Room 104 today ▾
-                </Badge>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 font-semibold leading-none">Rotation Group 1</p>
-                <h3 className="text-base font-black text-slate-950 dark:text-white mt-1.5 truncate">WEWASH-W01-ATL</h3>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="bg-black text-white dark:bg-slate-100 dark:text-slate-950 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">In Use</button>
-              <button className="border border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-400 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">Guidelines</button>
-            </div>
-            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-3 text-[10px] font-bold">
-              <span className="text-slate-400">GHS 35.00/wk</span>
-              <a href="#guidelines" className="text-[#F05A3E] flex items-center gap-0.5 hover:underline">
-                Move Rules <ArrowRight className="h-3 w-3" />
-              </a>
-            </div>
-          </Card>
-        </div>
-
-        {/* Card 2: Payments Tracker (col-span-3) */}
-        <Card className="col-span-12 lg:col-span-3 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-[230px]">
-          {/* Top Row: Total paid */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8.5 w-8.5 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center">
-                <CreditCard className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Weekly Dues Paid</p>
-                <p className="text-base font-extrabold text-slate-950 dark:text-white">GHS 35.00</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="text-[9px] font-bold border-slate-200 rounded-lg">Completed</Badge>
+          <div className="flex items-center gap-2">
+            <button className="bg-black text-white dark:bg-slate-100 dark:text-slate-950 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">In Use</button>
+            <button className="border border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-400 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">Guidelines</button>
           </div>
-          {/* Bottom Row: Setup paid */}
-          <div className="flex items-center justify-between pt-1">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8.5 w-8.5 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center">
-                <Droplet className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">One-time Setup Fee</p>
-                <p className="text-base font-extrabold text-slate-950 dark:text-white">GHS 50.00</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="text-[9px] font-bold border-slate-200 rounded-lg">Completed</Badge>
-          </div>
-          {/* Footer link */}
-          <div className="text-left pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <a href="#billing" className="text-[10px] font-bold text-[#F05A3E] hover:underline flex items-center gap-1">
-              View receipt log
+          <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-3 text-[10px] font-bold">
+            <span className="text-slate-400">GHS 35.00/wk</span>
+            <a href="#guidelines" className="text-[#2563eb] flex items-center gap-0.5 hover:underline">
+              Move Rules <ArrowRight className="h-3 w-3" />
             </a>
           </div>
         </Card>
 
-        {/* Card 3: Indicators - Base Stand & Progress Stack (col-span-2) */}
-        <div className="col-span-12 lg:col-span-2 flex flex-col gap-6 h-[230px]">
+        {/* Card 3: Indicators - Base Stand & Progress Stack (col-span-3) */}
+        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-[230px]">
           {/* Subcard 3A: Stand Lock */}
           <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -273,7 +258,7 @@ export default function StudentDashboard() {
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
                 <path
-                  className="text-[#F05A3E]"
+                  className="text-[#2563eb]"
                   strokeWidth="3.5"
                   strokeDasharray="50, 100"
                   strokeLinecap="round"
@@ -311,7 +296,7 @@ export default function StudentDashboard() {
               </div>
               <div className="flex items-end gap-1 h-8">
                 {[20, 50, 30, 80, 45].map((item, i) => (
-                  <span key={i} className="bg-[#F05A3E] rounded-xs flex-1" style={{ height: `${item}%` }} />
+                  <span key={i} className="bg-[#2563eb] rounded-xs flex-1" style={{ height: `${item}%` }} />
                 ))}
               </div>
             </Card>
@@ -331,7 +316,7 @@ export default function StudentDashboard() {
                 <path
                   d="M0,25 C20,20 40,5 60,15 C80,25 90,5 100,5"
                   fill="none"
-                  stroke="#F05A3E"
+                  stroke="#2563eb"
                   strokeWidth="2"
                   strokeLinecap="round"
                 />
@@ -352,7 +337,7 @@ export default function StudentDashboard() {
             <svg className="w-full h-full" viewBox="0 0 100 100">
               {/* Outer ring R104 */}
               <circle cx="50" cy="50" r="38" stroke="#F5F6F8" strokeWidth="6" fill="none" className="dark:stroke-slate-800" />
-              <path d="M50 12 A 38 38 0 0 1 88 50" stroke="#F05A3E" strokeWidth="6" fill="none" strokeLinecap="round" />
+              <path d="M50 12 A 38 38 0 0 1 88 50" stroke="#2563eb" strokeWidth="6" fill="none" strokeLinecap="round" />
               
               {/* Middle ring R101 */}
               <circle cx="50" cy="50" r="28" stroke="#F5F6F8" strokeWidth="6" fill="none" className="dark:stroke-slate-800" />
@@ -368,7 +353,7 @@ export default function StudentDashboard() {
           {/* Legend */}
           <div className="grid grid-cols-3 gap-1 text-[8px] font-bold text-center text-slate-500">
             <div className="flex flex-col items-center">
-              <span className="h-2 w-2 bg-[#F05A3E] rounded-full mb-1" />
+              <span className="h-2 w-2 bg-[#2563eb] rounded-full mb-1" />
               <span>Room 104 (You)</span>
             </div>
             <div className="flex flex-col items-center">
@@ -394,7 +379,7 @@ export default function StudentDashboard() {
             <div className="flex gap-1.5 text-[9px] font-bold">
               <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-md cursor-pointer hover:bg-slate-100">Care</span>
               <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-md cursor-pointer hover:bg-slate-100">Transfers</span>
-              <span className="px-2 py-0.5 bg-[#F05A3E]/10 text-[#F05A3E] border border-orange-200 dark:bg-orange-950/20 rounded-md cursor-pointer">Safety</span>
+              <span className="px-2 py-0.5 bg-[#2563eb]/10 text-[#2563eb] border border-blue-200 dark:bg-blue-950/20 rounded-md cursor-pointer">Safety</span>
             </div>
           </div>
           
@@ -407,7 +392,7 @@ export default function StudentDashboard() {
               </div>
               <div className="h-10 w-full flex items-end gap-1 pb-1">
                 {[2, 3, 2, 4, 3, 5, 2, 4].map((item, i) => (
-                  <span key={i} className="bg-[#F05A3E] rounded-xs flex-1" style={{ height: `${item * 10}%` }} />
+                  <span key={i} className="bg-[#2563eb] rounded-xs flex-1" style={{ height: `${item * 10}%` }} />
                 ))}
               </div>
             </div>
@@ -417,15 +402,15 @@ export default function StudentDashboard() {
               <p className="text-[8px] font-bold text-slate-400 uppercase">Safe Moving Rules</p>
               <div className="space-y-1 py-1 text-[7.5px] font-bold text-slate-500 leading-tight">
                 <div className="flex items-center gap-1">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#F05A3E] text-white flex items-center justify-center text-[6px]">✓</span>
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-[6px]">✓</span>
                   <span className="truncate">Never disconnect tap hoses</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#F05A3E] text-white flex items-center justify-center text-[6px]">✓</span>
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-[6px]">✓</span>
                   <span className="truncate">Lock base wheels before run</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#F05A3E] text-white flex items-center justify-center text-[6px]">✓</span>
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-[6px]">✓</span>
                   <span className="truncate">8:00 PM mutual room swap</span>
                 </div>
               </div>
@@ -442,7 +427,7 @@ export default function StudentDashboard() {
                 />
               </div>
               <p className="text-[7.5px] font-semibold text-slate-400 leading-normal">Movable Base & Hose Protection Schematic.</p>
-              <a href="#guidelines" className="w-full bg-[#F05A3E] hover:bg-[#d9482d] text-white text-[9px] font-bold py-1 rounded-full text-center cursor-pointer">Guide</a>
+              <a href="#guidelines" className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[9px] font-bold py-1 rounded-full text-center cursor-pointer">Guide</a>
             </div>
           </div>
         </Card>
@@ -458,7 +443,7 @@ export default function StudentDashboard() {
           </div>
           
           <div className="bg-slate-50 dark:bg-slate-800/30 border rounded-2xl p-4 flex flex-col items-center justify-center my-3">
-            <Smile className="h-10 w-10 text-orange-400 animate-bounce" />
+            <Smile className="h-10 w-10 text-blue-400 animate-bounce" />
             <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-2">Smooth & Clean</p>
             <p className="text-[9px] text-slate-400 font-semibold">Feedback by John Doe</p>
           </div>
@@ -466,7 +451,7 @@ export default function StudentDashboard() {
           <div className="flex justify-between items-center gap-1">
             <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Frown className="h-4.5 w-4.5" /></button>
             <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Meh className="h-4.5 w-4.5" /></button>
-            <button className="h-8 w-8 bg-[#F05A3E] text-white rounded-full flex items-center justify-center cursor-pointer"><Smile className="h-4.5 w-4.5" /></button>
+            <button className="h-8 w-8 bg-[#2563eb] text-white rounded-full flex items-center justify-center cursor-pointer"><Smile className="h-4.5 w-4.5" /></button>
             <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Heart className="h-4.5 w-4.5" /></button>
             <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Star className="h-4.5 w-4.5" /></button>
           </div>
