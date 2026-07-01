@@ -43,6 +43,11 @@ All tasks for building the WEWash system frontend pages, fixing compiling bugs, 
 - **Security credential inputs:** Allows administrators to fill in their operations email and security password with rounded inputs.
 - **Seamless transition:** Submitting the form immediately toggles the client-side session state and loads the sidebar and workspace.
 
+### 7. Student Layout Grid Optimizations
+- **Toolbar Removal:** Removed the left vertical rotation toolbar from the student's Active Appliance card to reflect their unprivileged access.
+- **Card Resizing:** Re-spanned the Active Appliance card to take a more dominant layout size (`col-span-6`), perfectly symmetrical with the remaining security and timeline indicator widgets (`col-span-3`).
+- **Payments Quick-Action Dropdown:** To save massive dashboard real-estate, the "Payments Tracker" grid card was entirely collapsed into a sleek "Dues & Payments ▾" Shadcn dropdown button located directly in the sub-header toolbar row next to the fault button.
+
 ---
 
 ## 🚦 Verification Results

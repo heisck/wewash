@@ -198,82 +198,90 @@ export default function StudentDashboard() {
 
       {/* 3. Content Grid */}
       <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-6">
-        {/* Card 1: VISA style machine status (col-span-6) */}
-        <Card className="col-span-12 lg:col-span-6 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-[230px]">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ACTIVE APPLIANCE</span>
-              <Badge className="bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 rounded-full px-2 py-0.5 text-[9px] font-bold">
-                Room 104 today ▾
-              </Badge>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-semibold leading-none">Rotation Group 1</p>
-              <h3 className="text-base font-black text-slate-950 dark:text-white mt-1.5 truncate">WEWASH-W01-ATL</h3>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="bg-black text-white dark:bg-slate-100 dark:text-slate-950 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">In Use</button>
-            <button className="border border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-400 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">Guidelines</button>
-          </div>
-          <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-3 text-[10px] font-bold">
-            <span className="text-slate-400">GHS 35.00/wk</span>
-            <a href="#guidelines" className="text-[#2563eb] flex items-center gap-0.5 hover:underline">
-              Move Rules <ArrowRight className="h-3 w-3" />
-            </a>
-          </div>
-        </Card>
-
-        {/* Card 3: Indicators - Base Stand & Progress Stack (col-span-3) */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-[230px]">
-          {/* Subcard 3A: Stand Lock */}
-          <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-300">
-                <Lock className="h-4.5 w-4.5" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-950 dark:text-white leading-none">Stand Locked</p>
-                <p className="text-[10px] text-slate-400 font-semibold mt-1">Stabilizers secure</p>
-              </div>
-            </div>
-            <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
-          </Card>
+        {/* Unified Active Appliance Dial (col-span-9) - Frameless */}
+        <div className="col-span-12 lg:col-span-9 relative min-h-[340px] flex items-center justify-center">
           
-          {/* Subcard 3B: Growth Rate circular ring */}
-          <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black text-slate-950 dark:text-white leading-none">24h Left</p>
-              <p className="text-[10px] text-slate-400 font-semibold mt-1">Access period</p>
-            </div>
+          {/* Top Left Identifiers */}
+          <div className="absolute top-6 left-6 z-20">
+            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ACTIVE APPLIANCE</p>
+            <h3 className="text-sm font-black text-slate-950 dark:text-white mt-0.5 truncate">WEWASH-W01-ATL</h3>
+          </div>
+
+          {/* Bottom Left Status */}
+          <div className="absolute bottom-6 left-6 z-20 flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-[#2563eb] animate-pulse" />
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Rotation Group 1</span>
+          </div>
+
+          {/* Bottom Right Info */}
+          <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end text-right hidden sm:flex">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Room 104</span>
+            <span className="text-xs font-black text-[#2563eb]">In Use Today</span>
+          </div>
+
+          {/* Dial Container */}
+          <div className="relative w-full h-full flex items-center justify-center max-w-[400px] mx-auto mt-4 sm:mt-0">
             
-            {/* Custom SVG Circular Progress Ring */}
-            <div className="relative h-12 w-12 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-slate-100 dark:text-slate-800"
-                  strokeWidth="3.5"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            {/* Concentric outer arc for menu (Clipped) */}
+            <div 
+              className="absolute w-[280px] h-[280px] md:w-[320px] md:h-[320px] rounded-full border-[24px] md:border-[30px] border-slate-200/40 dark:border-slate-800/60" 
+              style={{ clipPath: 'polygon(75% 15%, 100% 0%, 100% 100%, 75% 85%)' }}
+            />
+
+            {/* Icons floating perfectly on the arc */}
+            <div className="absolute w-[280px] h-[280px] md:w-[320px] md:h-[320px] rounded-full pointer-events-none z-20">
+              {/* Settings */}
+              <button className="pointer-events-auto absolute top-[14%] right-[10%] md:top-[16%] md:right-[13%] h-9 w-9 rounded-full flex items-center justify-center text-slate-400 hover:text-[#2563eb] hover:bg-white hover:shadow-md dark:hover:bg-slate-700 transition-all cursor-pointer bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700">
+                <Settings className="h-4 w-4" />
+              </button>
+              {/* Center Drop / Guidelines */}
+              <button className="pointer-events-auto absolute top-1/2 right-[-14px] md:right-[-6px] -translate-y-1/2 h-11 w-11 rounded-full flex items-center justify-center text-slate-500 hover:text-[#2563eb] hover:bg-white hover:shadow-md dark:hover:bg-slate-700 transition-all cursor-pointer bg-white dark:bg-slate-800 shadow-sm border border-slate-200/50 dark:border-slate-700">
+                <Droplet className="h-5 w-5" />
+              </button>
+              {/* Chart/Info */}
+              <button className="pointer-events-auto absolute bottom-[14%] right-[10%] md:bottom-[16%] md:right-[13%] h-9 w-9 rounded-full flex items-center justify-center text-slate-400 hover:text-[#2563eb] hover:bg-white hover:shadow-md dark:hover:bg-slate-700 transition-all cursor-pointer bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700">
+                <Activity className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* The Main Dial / Clock (No Background) */}
+            <div className="absolute w-[280px] h-[280px] md:w-[320px] md:h-[320px] flex flex-col items-center justify-center z-10 pointer-events-none">
+              
+              {/* Massive Outer Dashed Ring & Clock Hand */}
+              <svg className="absolute inset-0 w-full h-full opacity-40 dark:opacity-30">
+                <circle 
+                  cx="50%" cy="50%" r="48%" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="1.5" 
+                  className="text-slate-400 dark:text-slate-500"
+                  strokeDasharray="4 8" 
                 />
-                <path
-                  className="text-[#2563eb]"
-                  strokeWidth="3.5"
-                  strokeDasharray="50, 100"
+                {/* Clock Hand (pointing to 210 degrees / approx 14h) */}
+                <line 
+                  x1="50%" y1="50%" x2="50%" y2="8%" 
+                  stroke="currentColor" 
+                  strokeWidth="1.5"
+                  className="text-slate-500 dark:text-slate-400"
+                  style={{ transform: 'rotate(210deg)', transformOrigin: 'center' }}
                   strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
               </svg>
-              <span className="absolute text-[9px] font-black text-slate-805 dark:text-slate-100">50%</span>
+
+              {/* Center Text content (Blurred background masks clock hand overlap) */}
+              <div className="relative z-20 flex flex-col items-center justify-center w-36 h-36 rounded-full backdrop-blur-md bg-white/30 dark:bg-slate-900/40 shadow-2xl shadow-white/20 dark:shadow-slate-900/20 border border-white/50 dark:border-slate-800/50">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Time Left</span>
+                <h2 className="text-5xl md:text-6xl font-light text-slate-900 dark:text-white tracking-tighter leading-none">
+                  14<span className="text-xl md:text-2xl text-slate-400 font-normal ml-0.5">h</span>
+                </h2>
+              </div>
             </div>
-          </Card>
+
+          </div>
         </div>
 
         {/* Right column group: 13 Days, Mini vertical graph, Main Stocks (col-span-3) */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-[230px] justify-between">
+        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-[340px] justify-between">
           {/* Top Row: 13 Days & Mini Graph */}
           <div className="flex gap-4 h-[100px] shrink-0">
             {/* 13 Days Clock Card */}
