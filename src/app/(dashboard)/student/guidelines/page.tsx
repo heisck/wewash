@@ -1,19 +1,18 @@
 "use client";
 
-import Image from "next/image";
 import {
-  Droplet, ShieldCheck, AlertTriangle, ArrowRight,
-  CheckCircle, Clock, Info, Wrench
+  ShieldCheck, AlertTriangle, ArrowRight,
+  CheckCircle, Clock, Info, Wrench, Droplet
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import Carousel from "@/components/ui/carousel";
 
 const careRules = [
-  { text: "Never disconnect tap hoses while machine is running", icon: AlertTriangle, color: "text-red-500" },
-  { text: "Lock the base wheels before starting any wash cycle", icon: ShieldCheck, color: "text-blue-500" },
-  { text: "Room swap occurs daily at 8:00 PM — ensure machine is idle", icon: Clock, color: "text-amber-500" },
-  { text: "Use only recommended detergent amounts (see label on lid)", icon: Droplet, color: "text-cyan-500" },
-  { text: "Report any unusual noise or leaks immediately via the app", icon: Wrench, color: "text-slate-500" },
+  { text: "Never disconnect tap hoses while machine is running", icon: AlertTriangle },
+  { text: "Lock the base wheels before starting any wash cycle", icon: ShieldCheck },
+  { text: "Room swap occurs daily at 8:00 PM — ensure machine is idle", icon: Clock },
+  { text: "Use only recommended detergent amounts (see label on lid)", icon: Droplet },
+  { text: "Report any unusual noise or leaks immediately via the app", icon: Wrench },
 ];
 
 const transferSteps = [
@@ -26,17 +25,31 @@ const transferSteps = [
 ];
 
 export default function GuidelinesPage() {
+  const carouselItems = transferSteps.map((s) => ({
+    id: s.step,
+    title: s.title,
+    description: s.desc,
+    icon: (
+      <span className="text-xs font-black text-slate-800 dark:text-slate-100 leading-none">
+        {s.step}
+      </span>
+    )
+  }));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-0 pb-12">
       {/* Header */}
       <div>
         <h1 className="text-lg font-black text-slate-900 dark:text-white">Appliance Guide</h1>
       </div>
 
+      {/* Line Space Divider 1 */}
+      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
+
       {/* Care Rules */}
-      <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs">
+      <div>
         <div className="flex items-center gap-2 mb-5">
-          <ShieldCheck className="h-4 w-4 text-blue-500" />
+          <ShieldCheck className="h-4 w-4 text-slate-500" />
           <h2 className="text-sm font-black text-slate-900 dark:text-white">Safety & Care Rules</h2>
         </div>
 
@@ -45,65 +58,83 @@ export default function GuidelinesPage() {
             const Icon = rule.icon;
             return (
               <div key={i} className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-100 dark:border-slate-800">
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-white dark:bg-slate-800 shadow-xs border border-slate-200/50 dark:border-slate-700`}>
-                  <Icon className={`h-4 w-4 ${rule.color}`} />
+                <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-white dark:bg-slate-900 shadow-xs border border-slate-200/50 dark:border-slate-700">
+                  <Icon className="h-4 w-4 text-slate-500" />
                 </div>
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-relaxed pt-1.5">{rule.text}</p>
               </div>
             );
           })}
         </div>
-      </Card>
+      </div>
+
+      {/* Line Space Divider 2 */}
+      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
 
       {/* Transfer Steps */}
-      <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs">
+      <div>
         <div className="flex items-center gap-2 mb-5">
-          <ArrowRight className="h-4 w-4 text-blue-500" />
+          <ArrowRight className="h-4 w-4 text-slate-500" />
           <h2 className="text-sm font-black text-slate-900 dark:text-white">Room Transfer Procedure</h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {transferSteps.map((s) => (
-            <div key={s.step} className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 relative">
-              <div className="h-7 w-7 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-xs font-black mb-3">
-                {s.step}
-              </div>
-              <h4 className="text-xs font-black text-slate-900 dark:text-white">{s.title}</h4>
-              <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-relaxed">{s.desc}</p>
-            </div>
-          ))}
+        <div className="flex justify-center w-full py-4">
+          <Carousel
+            items={carouselItems}
+            baseWidth={320}
+            autoplay={true}
+            autoplayDelay={3500}
+            pauseOnHover={true}
+            loop={true}
+            round={true}
+          />
         </div>
-      </Card>
+      </div>
 
+      {/* Line Space Divider 3 */}
+      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
 
-      {/* Quick Info */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Max Load</span>
-            <Info className="h-4 w-4 text-slate-300" />
+      {/* Summary Metrics Bar - Edge to Edge */}
+      <div className="-mx-6 md:-mx-8 border-y border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
+          
+          {/* Max Load */}
+          <div className="pl-6 md:pl-8 pr-4 sm:pr-5 py-4 sm:py-5 flex flex-col justify-between min-h-[90px] sm:min-h-[105px]">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Max Load</span>
+              <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 hidden sm:block" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-none">7 kg</h3>
+              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold mt-1 truncate">Per wash cycle</p>
+            </div>
           </div>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-white">7 kg</h3>
-          <p className="text-[10px] text-slate-400 font-bold mt-1">Per wash cycle</p>
-        </Card>
 
-        <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cycle Time</span>
-            <Clock className="h-4 w-4 text-slate-300" />
+          {/* Cycle Time */}
+          <div className="px-4 sm:px-5 py-4 sm:py-5 flex flex-col justify-between min-h-[90px] sm:min-h-[105px]">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Cycle Time</span>
+              <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0 hidden sm:block" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-none">45 min</h3>
+              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold mt-1 truncate">Standard wash</p>
+            </div>
           </div>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-white">45 min</h3>
-          <p className="text-[10px] text-slate-400 font-bold mt-1">Standard wash</p>
-        </Card>
 
-        <Card className="rounded-3xl border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Rooms Served</span>
-            <CheckCircle className="h-4 w-4 text-green-400" />
+          {/* Rooms Served */}
+          <div className="pl-4 sm:pl-5 pr-6 md:pr-8 py-4 sm:py-5 flex flex-col justify-between min-h-[90px] sm:min-h-[105px]">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Rooms Served</span>
+              <CheckCircle className="h-3.5 w-3.5 text-slate-400 shrink-0 hidden sm:block" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-none">7</h3>
+              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold mt-1 truncate">Per rotation group</p>
+            </div>
           </div>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-white">7</h3>
-          <p className="text-[10px] text-slate-400 font-bold mt-1">Per rotation group</p>
-        </Card>
+
+        </div>
       </div>
     </div>
   );
