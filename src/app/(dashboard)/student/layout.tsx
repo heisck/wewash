@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { 
-  LayoutDashboard, CreditCard, Info, 
+  LayoutDashboard, CreditCard, Info, Settings,
   LogOut, Droplet, Bell 
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -37,8 +37,9 @@ export default function StudentLayout({
 
   const menuItems = [
     { name: "My Dashboard", href: "/student", icon: LayoutDashboard },
-    { name: "Payments & Dues", href: "/student#billing", icon: CreditCard },
-    { name: "Appliance Guide", href: "/student#guidelines", icon: Info },
+    { name: "Payments & Dues", href: "/student/billing", icon: CreditCard },
+    { name: "Appliance Guide", href: "/student/guidelines", icon: Info },
+    { name: "Settings", href: "/student/settings", icon: Settings },
   ];
 
   return (
@@ -64,9 +65,9 @@ export default function StudentLayout({
                 <SidebarGroupContent className="mt-2">
                   <SidebarMenu className="space-y-1 px-2">
                     {menuItems.map((item) => {
-                      const isActive = item.href.includes("#")
-                        ? pathname === item.href.split("#")[0] && currentHash === item.href.substring(item.href.indexOf("#"))
-                        : pathname === item.href && currentHash === "";
+                      const isActive = item.href === "/student"
+                        ? pathname === "/student"
+                        : pathname.startsWith(item.href);
                       const Icon = item.icon;
                       return (
                         <SidebarMenuItem key={item.name}>
