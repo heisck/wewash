@@ -4,66 +4,58 @@ import { Activity, CreditCard, DollarSign, Users, Wrench } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function AdminDashboard() {
   return (
-    <div className="flex-col md:flex">
-      <div className="border-b">
-        <div className="flex h-16 items-center px-4">
-          <div className="font-bold text-xl mr-8">WeWash Admin</div>
-          <nav className="flex items-center space-x-4 lg:space-x-6 mx-6">
-            <a href="/admin" className="text-sm font-medium transition-colors hover:text-primary">Overview</a>
-            <a href="/admin/machines" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">Machines</a>
-            <a href="/admin/students" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">Students</a>
-            <a href="/admin/faults" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">Faults</a>
-          </nav>
-        </div>
-      </div>
-      <div className="flex-1 space-y-4 p-8 pt-6">
+    <div className="flex-1 space-y-4 p-8 pt-6 bg-gray-50/30 dark:bg-gray-900/10">
         <div className="flex items-center justify-between space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Dashboard Overview</h2>
+            <p className="text-sm text-muted-foreground">Pilot Phase: Atlantic Hall Deployment</p>
+          </div>
         </div>
         
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
+          <Card className="shadow-sm border-blue-100/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Est. Weekly Income</CardTitle>
+              <DollarSign className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">GHS 45,231.89</div>
-              <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+              <div className="text-2xl font-bold">GHS 1,020.00</div>
+              <p className="text-xs text-muted-foreground">₵35 - ₵40 per student rate</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="shadow-sm border-blue-100/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Students</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+2350</div>
-              <p className="text-xs text-muted-foreground">+180 new this month</p>
+              <div className="text-2xl font-bold">28</div>
+              <p className="text-xs text-muted-foreground">100% room capacity (14 rooms)</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="shadow-sm border-blue-100/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Contracts</CardTitle>
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Deployed Machines</CardTitle>
+              <Activity className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+12,234</div>
-              <p className="text-xs text-muted-foreground">+19% from last month</p>
+              <div className="text-2xl font-bold">2 / 2</div>
+              <p className="text-xs text-muted-foreground">Movable bases locked & active</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="shadow-sm border-blue-100/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Open Faults</CardTitle>
-              <Wrench className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Active Faults</CardTitle>
+              <Wrench className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-red-500 font-medium">+3 since yesterday</p>
+              <div className="text-2xl font-bold">1</div>
+              <p className="text-xs text-muted-foreground">Machine W02 (Minor noise)</p>
             </CardContent>
           </Card>
         </div>
@@ -131,6 +123,5 @@ export default function AdminDashboard() {
           </Card>
         </div>
       </div>
-    </div>
   );
 }
