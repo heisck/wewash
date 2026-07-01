@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
+import { Roboto, Caveat } from "next/font/google";
 import "./globals.css";
 
 const roboto = Roboto({
   weight: ["300", "400", "500", "700", "900"],
   subsets: ["latin"],
   variable: "--font-roboto",
+});
+
+const caveat = Caveat({
+  subsets: ["latin"],
+  variable: "--font-caveat",
 });
 
 export const metadata: Metadata = {
@@ -21,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${roboto.variable} h-full antialiased`}
+      className={`${roboto.variable} ${caveat.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

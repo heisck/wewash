@@ -12,7 +12,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { 
   LayoutDashboard, CreditCard, Info, 
-  LogOut, Droplet, FileWarning 
+  LogOut, Droplet 
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,16 @@ export default function StudentLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [currentHash, setCurrentHash] = React.useState("");
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCurrentHash(window.location.hash);
+      const handleHashChange = () => setCurrentHash(window.location.hash);
+      window.addEventListener("hashchange", handleHashChange);
+      return () => window.removeEventListener("hashchange", handleHashChange);
+    }
+  }, []);
 
   const menuItems = [
     { name: "My Dashboard", href: "/student", icon: LayoutDashboard },
@@ -38,9 +48,11 @@ export default function StudentLayout({
           {/* Sidebar */}
           <Sidebar collapsible="icon" className="border-r border-slate-200 dark:border-slate-800">
             <SidebarHeader className="h-16 flex items-center px-4 border-b border-slate-100 dark:border-slate-800/80">
-              <div className="flex items-center gap-2.5 font-bold text-lg text-blue-600 dark:text-blue-400 group-data-[collapsible=icon]:justify-center w-full">
+              <div className="flex items-center gap-2 font-bold text-lg text-blue-600 dark:text-blue-400 group-data-[collapsible=icon]:justify-center w-full">
                 <Droplet className="h-5 w-5 fill-current animate-pulse text-blue-500 shrink-0" />
-                <span className="group-data-[collapsible=icon]:hidden font-extrabold tracking-tight">WeWash</span>
+                <span className="group-data-[collapsible=icon]:hidden font-extrabold tracking-tight">
+                  WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-xl">ash</span>
+                </span>
               </div>
             </SidebarHeader>
 
@@ -52,7 +64,9 @@ export default function StudentLayout({
                 <SidebarGroupContent className="mt-2">
                   <SidebarMenu className="space-y-1 px-2">
                     {menuItems.map((item) => {
-                      const isActive = pathname === item.href || (item.href.includes("#") && pathname + item.href.substring(item.href.indexOf("#")) === pathname + window.location.hash);
+                      const isActive = item.href.includes("#")
+                        ? pathname === item.href.split("#")[0] && currentHash === item.href.substring(item.href.indexOf("#"))
+                        : pathname === item.href && currentHash === "";
                       const Icon = item.icon;
                       return (
                         <SidebarMenuItem key={item.name}>
@@ -110,7 +124,7 @@ export default function StudentLayout({
             </header>
 
             {/* Sub-page Content */}
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto bg-[#F5F6F8] dark:bg-[#10141e] p-6 md:p-8">
               {children}
             </main>
           </SidebarInset>

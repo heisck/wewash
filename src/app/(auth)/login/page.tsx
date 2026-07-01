@@ -11,9 +11,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-950 px-6 py-12">
       {/* Top Brand Logo */}
-      <div className="absolute top-8 flex items-center gap-2 text-xl font-black text-blue-600 dark:text-blue-400">
+      <div className="absolute top-8 flex items-center gap-1.5 text-xl font-black text-blue-600 dark:text-blue-400">
         <Droplet className="h-6 w-6 fill-current animate-pulse text-blue-500" />
-        <span>WeWash</span>
+        <span>
+          WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-2xl">ash</span>
+        </span>
       </div>
 
       <div className="w-full max-w-[400px] flex flex-col items-center text-center">

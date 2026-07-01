@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { 
   Bell, Calendar, CreditCard, Droplet, FileWarning, LogOut, 
-  Settings, Info, AlertTriangle, ShieldCheck, ArrowRight, Sparkles 
+  Settings, Info, AlertTriangle, ShieldCheck, ArrowRight, Sparkles,
+  ChevronRight, TrendingUp, HelpCircle, Lock, Search, Plus, Mic,
+  WrenchIcon, Smile, Meh, Frown, Heart, Star, Wrench, Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -48,56 +50,30 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50/50 dark:bg-slate-950/50 flex flex-col font-sans">
-      {/* Navbar */}
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-white dark:bg-slate-900 px-6 shadow-sm">
-        <div className="flex items-center gap-2 font-semibold">
-          <Droplet className="h-6 w-6 text-blue-500 fill-current animate-pulse" />
-          <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-indigo-400">
-            WeWash Student
-          </span>
-        </div>
-        <div className="ml-auto flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-600" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <Avatar className="h-9 w-9 border border-blue-200">
-              <AvatarImage src="https://github.com/shadcn.png" alt="@student" />
-              <AvatarFallback>ST</AvatarFallback>
-            </Avatar>
-            <div className="hidden md:block text-left">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">John Doe</p>
-              <p className="text-[10px] text-muted-foreground">Atlantic Hall • Room 104</p>
-            </div>
+    <div className="space-y-6">
+      {/* 2. Sub-Header Row */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-2">
+        {/* Left Side: Date widget & Fault dialog trigger */}
+        <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+          {/* Day number Circle */}
+          <div className="h-16 w-16 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-full flex flex-col items-center justify-center font-bold text-slate-800 dark:text-slate-100 shadow-xs relative">
+            <span className="text-[20px] font-black leading-none">19</span>
+            <span className="absolute bottom-1.5 h-1 w-1 bg-red-500 rounded-full" />
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => router.push("/login")}
-            title="Logout"
-            className="hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-          >
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 flex-1">
-        <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+          
+          {/* Date Label */}
+          <div className="h-8 w-px bg-slate-300 dark:bg-slate-800 hidden sm:block" />
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Your Laundry Center</h1>
-            <p className="text-muted-foreground mt-1">Hello John. Check rotation schedule, review subscription dues, or file reports.</p>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Wed, December</p>
+            <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">Today: Wed 8 PM - Thu 8 PM</p>
           </div>
-
-          {/* Fault Dialog Trigger */}
+          
+          {/* Coral pill CTA button (Report Fault) */}
           <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
             <DialogTrigger
-              className="inline-flex items-center justify-center rounded-full text-sm font-semibold bg-red-600 hover:bg-red-700 text-white h-10 px-4 cursor-pointer"
+              className="bg-[#F05A3E] hover:bg-[#d9482d] text-white rounded-full px-6 h-11 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-orange-500/10 ml-0 sm:ml-4"
             >
-              <FileWarning className="mr-2 h-4 w-4" /> Report Fault
+              Report Fault <ArrowRight className="h-3.5 w-3.5" />
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -161,160 +137,341 @@ export default function StudentDashboard() {
               </form>
             </DialogContent>
           </Dialog>
+
+          {/* Small notification indicator */}
+          <button className="h-10 w-10 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-full flex items-center justify-center cursor-pointer relative shadow-xs">
+            <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            <span className="absolute top-2.5 right-2.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+          </button>
         </div>
 
-        {/* Dashboard Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Right Side: Welcome message & microphone */}
+        <div className="flex items-center justify-between lg:justify-end gap-6 w-full lg:w-auto">
+          <div className="text-left lg:text-right">
+            <h1 className="text-2xl font-black text-slate-950 dark:text-white leading-none">
+              Hey John, need help? 👋
+            </h1>
+            <p className="text-base text-slate-400 font-bold tracking-tight mt-1">
+              Just ask me anything!
+            </p>
+          </div>
+          {/* Mic Circle button */}
+          <button className="h-12 w-12 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center cursor-pointer shadow-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800">
+            <Mic className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Content Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-6">
+              {/* Card 1: Toolbar + VISA style machine status (col-span-4) */}
+        <div className="col-span-12 lg:col-span-4 flex gap-4 h-[230px]">
+          {/* Left Vertical Toolbar from Mockup */}
+          <div className="w-12 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-full py-5 flex flex-col items-center justify-between h-full shrink-0 shadow-xs">
+            <div className="h-6 w-1.5 bg-[#F05A3E] rounded-full" />
+            <button className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-[#F05A3E] hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+              <Plus className="h-4 w-4" />
+            </button>
+            <button className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-[#F05A3E] hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 10.742l4.828-2.414m0 0a3 3 0 100-5.836 3 3 0 000 5.836zm-4.828 2.414a3 3 0 11-5.656 0 3 3 0 015.656 0zm0 0l4.828 2.414a3 3 0 11-4.828 2.414 3 3 0 014.828-2.414z" /></svg>
+            </button>
+          </div>
           
-          {/* Machine Assignment & Rotation Schedule */}
-          <Card className="col-span-1 lg:col-span-2 border-blue-100 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent shadow-sm">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs uppercase font-semibold text-blue-600 tracking-wider">Current Schedule</CardDescription>
-              <CardTitle className="text-2xl flex items-center justify-between">
-                <span>Machine W01 (Floor 1)</span>
-                <Badge className="bg-green-500 text-white">In Your Room Today</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 bg-white dark:bg-slate-900 border rounded-xl flex items-start gap-4">
-                <div className="p-3 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full">
-                  <Calendar className="h-6 w-6" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 dark:text-slate-200">Your Assigned Turn: Wednesday</h4>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Access starts **Wednesday at 8:00 PM** and ends **Thursday at 8:00 PM**.
-                  </p>
-                  <p className="text-xs font-semibold text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
-                    ✔️ Keep machine in Room 104 until Thursday 8:00 PM, then wheel it to Room 105.
-                  </p>
-                </div>
+          <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-full">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ACTIVE APPLIANCE</span>
+                <Badge className="bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 rounded-full px-2 py-0.5 text-[9px] font-bold">
+                  Room 104 today ▾
+                </Badge>
               </div>
-
-              {/* Day Rotation Slider */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Atlantic Hall Week Rotation</h4>
-                <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold">
-                  {[
-                    { day: "Sun", room: "101" },
-                    { day: "Mon", room: "102" },
-                    { day: "Tue", room: "103" },
-                    { day: "Wed", room: "104" },
-                    { day: "Thu", room: "105" },
-                    { day: "Fri", room: "106" },
-                    { day: "Sat", room: "107" },
-                  ].map((item, idx) => {
-                    const isStudentDay = item.day === "Wed";
-                    return (
-                      <div 
-                        key={idx} 
-                        className={`p-2 rounded-lg border ${
-                          isStudentDay 
-                            ? "bg-blue-600 text-white border-blue-600 font-bold shadow-md shadow-blue-500/10 scale-105" 
-                            : "bg-slate-50 dark:bg-slate-900 text-slate-500 border-slate-100"
-                        }`}
-                      >
-                        <div>{item.day}</div>
-                        <div className={`text-[10px] mt-1 ${isStudentDay ? "text-blue-100" : "text-muted-foreground"}`}>
-                          R{item.room}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-semibold leading-none">Rotation Group 1</p>
+                <h3 className="text-base font-black text-slate-950 dark:text-white mt-1.5 truncate">WEWASH-W01-ATL</h3>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Dues and Billing Card */}
-          <Card className="shadow-sm border-blue-100/50">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs uppercase font-semibold text-blue-600 tracking-wider">Subscription</CardDescription>
-              <CardTitle className="text-2xl">Billing Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2 text-sm border-b pb-4">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Weekly Rate:</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">GHS 35.00</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Setup Fee Status:</span>
-                  <span className="font-semibold text-green-600 dark:text-green-400">Paid (₵50.00)</span>
-                </div>
-                <div className="flex justify-between font-semibold pt-2 border-t mt-2 text-slate-900 dark:text-slate-100">
-                  <span>Balance Outstanding:</span>
-                  <span className="text-green-600">GHS 0.00</span>
-                </div>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border text-xs text-muted-foreground space-y-1">
-                <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1">
-                  <Info className="h-3.5 w-3.5 text-blue-500" /> Manual Payment Note
-                </span>
-                Send Mobile Money to WeWash merchant details and submit the confirmation via the official WhatsApp chat.
-              </div>
-            </CardContent>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="bg-black text-white dark:bg-slate-100 dark:text-slate-950 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">In Use</button>
+              <button className="border border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-400 rounded-full px-4 py-1.5 text-[10px] font-bold cursor-pointer">Guidelines</button>
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-3 text-[10px] font-bold">
+              <span className="text-slate-400">GHS 35.00/wk</span>
+              <a href="#guidelines" className="text-[#F05A3E] flex items-center gap-0.5 hover:underline">
+                Move Rules <ArrowRight className="h-3 w-3" />
+              </a>
+            </div>
           </Card>
         </div>
 
-        {/* Protection & Handling Guidelines Section */}
-        <div className="grid gap-6 md:grid-cols-3 mt-6">
-          <Card className="col-span-1 md:col-span-2 shadow-sm border-blue-100/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ShieldCheck className="h-5 w-5 text-blue-500" />
-                Movable Base & Hose Protection Rules
-              </CardTitle>
-              <CardDescription>Follow these rules to prevent appliance damage and safeguard your hostel deposit.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4 items-center">
-              <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300">
-                <div className="flex items-start gap-2">
-                  <span className="bg-blue-100 text-blue-800 h-5 w-5 rounded-full flex items-center justify-center font-bold text-[10px] mt-0.5 shrink-0">1</span>
-                  <p><strong>Never disconnect hoses from the back of the machine.</strong> Only disconnect from the wall tap, drain the remaining water, and coil neatly on top.</p>
+        {/* Card 2: Payments Tracker (col-span-3) */}
+        <Card className="col-span-12 lg:col-span-3 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-[230px]">
+          {/* Top Row: Total paid */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8.5 w-8.5 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center">
+                <CreditCard className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Weekly Dues Paid</p>
+                <p className="text-base font-extrabold text-slate-950 dark:text-white">GHS 35.00</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[9px] font-bold border-slate-200 rounded-lg">Completed</Badge>
+          </div>
+          {/* Bottom Row: Setup paid */}
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8.5 w-8.5 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center">
+                <Droplet className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">One-time Setup Fee</p>
+                <p className="text-base font-extrabold text-slate-950 dark:text-white">GHS 50.00</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[9px] font-bold border-slate-200 rounded-lg">Completed</Badge>
+          </div>
+          {/* Footer link */}
+          <div className="text-left pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <a href="#billing" className="text-[10px] font-bold text-[#F05A3E] hover:underline flex items-center gap-1">
+              View receipt log
+            </a>
+          </div>
+        </Card>
+
+        {/* Card 3: Indicators - Base Stand & Progress Stack (col-span-2) */}
+        <div className="col-span-12 lg:col-span-2 flex flex-col gap-6 h-[230px]">
+          {/* Subcard 3A: Stand Lock */}
+          <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-300">
+                <Lock className="h-4.5 w-4.5" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-950 dark:text-white leading-none">Stand Locked</p>
+                <p className="text-[10px] text-slate-400 font-semibold mt-1">Stabilizers secure</p>
+              </div>
+            </div>
+            <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+          </Card>
+          
+          {/* Subcard 3B: Growth Rate circular ring */}
+          <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-black text-slate-950 dark:text-white leading-none">24h Left</p>
+              <p className="text-[10px] text-slate-400 font-semibold mt-1">Access period</p>
+            </div>
+            
+            {/* Custom SVG Circular Progress Ring */}
+            <div className="relative h-12 w-12 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                <path
+                  className="text-slate-100 dark:text-slate-800"
+                  strokeWidth="3.5"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <path
+                  className="text-[#F05A3E]"
+                  strokeWidth="3.5"
+                  strokeDasharray="50, 100"
+                  strokeLinecap="round"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+              </svg>
+              <span className="absolute text-[9px] font-black text-slate-805 dark:text-slate-100">50%</span>
+            </div>
+          </Card>
+        </div>
+
+        {/* Right column group: 13 Days, Mini vertical graph, Main Stocks (col-span-3) */}
+        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6 h-[230px] justify-between">
+          {/* Top Row: 13 Days & Mini Graph */}
+          <div className="flex gap-4 h-[100px] shrink-0">
+            {/* 13 Days Clock Card */}
+            <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[9px] font-bold text-slate-400">Days</span>
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-950 dark:text-white leading-none">1 Day</h4>
+                <p className="text-[8px] text-slate-400 mt-0.5 font-semibold">Timeline</p>
+              </div>
+            </Card>
+            
+            {/* Mini vertical graph */}
+            <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <Activity className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[9px] font-bold text-slate-400">Load</span>
+              </div>
+              <div className="flex items-end gap-1 h-8">
+                {[20, 50, 30, 80, 45].map((item, i) => (
+                  <span key={i} className="bg-[#F05A3E] rounded-xs flex-1" style={{ height: `${item}%` }} />
+                ))}
+              </div>
+            </Card>
+          </div>
+          
+          {/* Bottom Row: Main Stocks Line Card */}
+          <Card className="flex-1 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-4 flex items-center justify-between min-h-[100px]">
+            <div className="space-y-1">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Hostel Load Ratio</span>
+              <p className="text-[9px] text-slate-400 font-semibold">Cycle Status</p>
+              <Badge className="bg-green-50 text-green-600 dark:bg-green-950/30 text-[8px] rounded-full font-bold px-1.5 py-0.2 mt-1 border border-green-200/20">Stable</Badge>
+            </div>
+            
+            {/* Tiny SVG Line chart */}
+            <div className="h-10 w-24">
+              <svg className="w-full h-full" viewBox="0 0 100 30" preserveAspectRatio="none">
+                <path
+                  d="M0,25 C20,20 40,5 60,15 C80,25 90,5 100,5"
+                  fill="none"
+                  stroke="#F05A3E"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+          </Card>
+        </div>
+
+        {/* Card 7: Concentric circular arcs (col-span-3) */}
+        <Card className="md:col-span-3 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-[310px]">
+          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+            <span className="text-xs font-black text-slate-900 dark:text-white">Usage by Room</span>
+            <Badge variant="outline" className="text-[9px] font-bold border-slate-200">2026 ▾</Badge>
+          </div>
+          
+          {/* SVG Concentric Arcs */}
+          <div className="relative h-36 flex items-center justify-center my-2">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              {/* Outer ring R104 */}
+              <circle cx="50" cy="50" r="38" stroke="#F5F6F8" strokeWidth="6" fill="none" className="dark:stroke-slate-800" />
+              <path d="M50 12 A 38 38 0 0 1 88 50" stroke="#F05A3E" strokeWidth="6" fill="none" strokeLinecap="round" />
+              
+              {/* Middle ring R101 */}
+              <circle cx="50" cy="50" r="28" stroke="#F5F6F8" strokeWidth="6" fill="none" className="dark:stroke-slate-800" />
+              <path d="M50 22 A 28 28 0 0 1 78 50" stroke="#FF8D75" strokeWidth="6" fill="none" strokeLinecap="round" />
+              
+              {/* Inner ring R102 */}
+              <circle cx="50" cy="50" r="18" stroke="#F5F6F8" strokeWidth="6" fill="none" className="dark:stroke-slate-800" />
+              <path d="M50 32 A 18 18 0 0 1 68 50" stroke="#FFBCAD" strokeWidth="6" fill="none" strokeLinecap="round" />
+            </svg>
+            <div className="absolute text-[9px] font-extrabold text-slate-400">Total Loads</div>
+          </div>
+          
+          {/* Legend */}
+          <div className="grid grid-cols-3 gap-1 text-[8px] font-bold text-center text-slate-500">
+            <div className="flex flex-col items-center">
+              <span className="h-2 w-2 bg-[#F05A3E] rounded-full mb-1" />
+              <span>Room 104 (You)</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="h-2 w-2 bg-[#FF8D75] rounded-full mb-1" />
+              <span>Room 101</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="h-2 w-2 bg-[#FFBCAD] rounded-full mb-1" />
+              <span>Room 102</span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Card 8: Activity Manager (col-span-6) */}
+        <Card className="md:col-span-6 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-[310px]">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-black text-slate-900 dark:text-white">Guidelines & Rules</span>
+              <HelpCircle className="h-3.5 w-3.5 text-slate-400" />
+            </div>
+            
+            {/* Filter buttons */}
+            <div className="flex gap-1.5 text-[9px] font-bold">
+              <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-md cursor-pointer hover:bg-slate-100">Care</span>
+              <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-md cursor-pointer hover:bg-slate-100">Transfers</span>
+              <span className="px-2 py-0.5 bg-[#F05A3E]/10 text-[#F05A3E] border border-orange-200 dark:bg-orange-950/20 rounded-md cursor-pointer">Safety</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-4 pt-3 flex-1">
+            {/* Column 1: Dues outstanding barcode */}
+            <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-3 flex flex-col justify-between border border-slate-100 dark:border-slate-800">
+              <div>
+                <p className="text-[8px] font-bold text-slate-400 uppercase">Outstanding Dues</p>
+                <h4 className="text-base font-black text-slate-950 dark:text-white mt-1">₵0.00</h4>
+              </div>
+              <div className="h-10 w-full flex items-end gap-1 pb-1">
+                {[2, 3, 2, 4, 3, 5, 2, 4].map((item, i) => (
+                  <span key={i} className="bg-[#F05A3E] rounded-xs flex-1" style={{ height: `${item * 10}%` }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Column 2: Bullet check lists */}
+            <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-3 flex flex-col justify-between border border-slate-100 dark:border-slate-800">
+              <p className="text-[8px] font-bold text-slate-400 uppercase">Safe Moving Rules</p>
+              <div className="space-y-1 py-1 text-[7.5px] font-bold text-slate-500 leading-tight">
+                <div className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#F05A3E] text-white flex items-center justify-center text-[6px]">✓</span>
+                  <span className="truncate">Never disconnect tap hoses</span>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="bg-blue-100 text-blue-800 h-5 w-5 rounded-full flex items-center justify-center font-bold text-[10px] mt-0.5 shrink-0">2</span>
-                  <p><strong>Lock the stand wheels before washing.</strong> Once the machine enters your room, lock the wheels and adjust stabilizers. Do not run cycles while on moving wheels.</p>
+                <div className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#F05A3E] text-white flex items-center justify-center text-[6px]">✓</span>
+                  <span className="truncate">Lock base wheels before run</span>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="bg-blue-100 text-blue-800 h-5 w-5 rounded-full flex items-center justify-center font-bold text-[10px] mt-0.5 shrink-0">3</span>
-                  <p><strong>Cooperative 8:00 PM Move.</strong> Communicate on WhatsApp. Ensure the recipient room is ready. Avoid dragging machines across doors or stairs.</p>
+                <div className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#F05A3E] text-white flex items-center justify-center text-[6px]">✓</span>
+                  <span className="truncate">8:00 PM mutual room swap</span>
                 </div>
               </div>
-              <div className="relative w-full h-[180px] rounded-lg overflow-hidden border bg-slate-100">
+            </div>
+
+            {/* Column 3: Wrench action */}
+            <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-3 flex flex-col justify-between border border-slate-100 dark:border-slate-800">
+              <div className="relative w-full h-10 rounded-lg overflow-hidden bg-white dark:bg-slate-900 border">
                 <Image 
                   src="/images/base_instructions.png" 
                   alt="Washing Machine Movable Base Schematic" 
                   fill 
-                  className="object-contain p-2"
+                  className="object-contain p-1"
                 />
               </div>
-            </CardContent>
-          </Card>
+              <p className="text-[7.5px] font-semibold text-slate-400 leading-normal">Movable Base & Hose Protection Schematic.</p>
+              <a href="#guidelines" className="w-full bg-[#F05A3E] hover:bg-[#d9482d] text-white text-[9px] font-bold py-1 rounded-full text-center cursor-pointer">Guide</a>
+            </div>
+          </div>
+        </Card>
 
-          {/* Recent Activity List */}
-          <Card className="shadow-sm border-blue-100/50">
-            <CardHeader>
-              <CardTitle className="text-lg">Recent Activities</CardTitle>
-              <CardDescription>Log of your portal history.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y text-xs">
-                {recentActivities.map((act, i) => (
-                  <div key={i} className="flex justify-between items-start p-3 hover:bg-slate-50/50">
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">{act.title}</p>
-                      <p className="text-[10px] text-muted-foreground">{act.detail}</p>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground font-mono">{act.date}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+        {/* Card 9: Rating Feedback (col-span-3) */}
+        <Card className="md:col-span-3 shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6 flex flex-col justify-between h-[310px]">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Hostel Feedback</h3>
+              <p className="text-[9px] text-slate-400 font-semibold leading-normal">How was your laundry experience today?</p>
+            </div>
+            <button className="text-slate-400 hover:text-slate-600">×</button>
+          </div>
+          
+          <div className="bg-slate-50 dark:bg-slate-800/30 border rounded-2xl p-4 flex flex-col items-center justify-center my-3">
+            <Smile className="h-10 w-10 text-orange-400 animate-bounce" />
+            <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-2">Smooth & Clean</p>
+            <p className="text-[9px] text-slate-400 font-semibold">Feedback by John Doe</p>
+          </div>
+
+          <div className="flex justify-between items-center gap-1">
+            <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Frown className="h-4.5 w-4.5" /></button>
+            <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Meh className="h-4.5 w-4.5" /></button>
+            <button className="h-8 w-8 bg-[#F05A3E] text-white rounded-full flex items-center justify-center cursor-pointer"><Smile className="h-4.5 w-4.5" /></button>
+            <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Heart className="h-4.5 w-4.5" /></button>
+            <button className="h-8 w-8 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 cursor-pointer"><Star className="h-4.5 w-4.5" /></button>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

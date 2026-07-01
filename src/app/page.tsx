@@ -9,9 +9,11 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-6">
-          <div className="flex items-center gap-2 font-bold text-xl text-blue-600 dark:text-blue-400">
+          <div className="flex items-center gap-1.5 font-bold text-xl text-blue-600 dark:text-blue-400">
             <Droplet className="h-6 w-6 fill-current animate-pulse text-blue-500" />
-            <span>WeWash</span>
+            <span>
+              WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-2xl">ash</span>
+            </span>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
             <a href="#problem" className="transition-colors hover:text-foreground">The Problem</a>
@@ -213,9 +215,11 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border/40 bg-slate-900 text-slate-400 py-12">
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2 font-bold text-xl text-white">
+          <div className="flex items-center gap-1.5 font-bold text-xl text-white">
             <Droplet className="h-6 w-6 text-blue-500 fill-current" />
-            <span>WeWash</span>
+            <span>
+              WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-2xl">ash</span>
+            </span>
           </div>
           <p className="text-xs">
             © {new Date().getFullYear()} WeWash Inc. All rights reserved. Servicing Atlantic Hall, UCC.
