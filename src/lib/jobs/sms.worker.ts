@@ -32,14 +32,17 @@ export const smsWorker = new Worker<SmsJobData>(
       });
 
       // Send SMS
+      let response;
       if (type === "TEMPLATE") {
-        await sendTemplateSMS(
+        response = await sendTemplateSMS(
           message,
           recipients as Record<string, Record<string, string>>
         );
       } else {
-        await sendSMS(recipients as string[], message);
+        response = await sendSMS(recipients as string[], message);
       }
+
+      const providerId = response?.data?.[0]?.id || null;
 
       // Mark log as SENT
       await prisma.notificationLog.update({
@@ -47,6 +50,7 @@ export const smsWorker = new Worker<SmsJobData>(
         data: {
           status: "SENT",
           sentAt: new Date(),
+          providerId,
           errorMessage: null,
         },
       });

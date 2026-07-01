@@ -22,6 +22,15 @@ export class StudentRepository extends BaseRepository {
   }
 
   /**
+   * Find a student by Better Auth User ID.
+   */
+  async findByUserId(userId: string): Promise<Student | null> {
+    return this.db.student.findFirst({
+      where: { userId, deletedAt: null },
+    });
+  }
+
+  /**
    * Find many students with pagination and filters.
    */
   async findMany(options: FindManyOptions): Promise<[Student[], number]> {
