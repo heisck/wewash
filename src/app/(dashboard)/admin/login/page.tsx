@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Droplet, Lock, Mail } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,9 +28,8 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 px-6 py-12">
       {/* Top Brand Logo */}
-      <div className="flex items-center gap-2 text-xl font-black text-blue-600 dark:text-blue-400 mb-12">
-        <Droplet className="h-6 w-6 fill-current animate-pulse text-blue-500" />
-        <span>WeWash Admin</span>
+      <div className="mb-12">
+        <img src="/favicon.ico" alt="WeWash Logo" className="h-10 w-10 object-contain" />
       </div>
 
       <div className="w-full max-w-[400px] flex flex-col items-center">

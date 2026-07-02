@@ -12,7 +12,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { 
   LayoutDashboard, CreditCard, Info, Settings,
-  LogOut, Droplet, Bell 
+  LogOut, Bell 
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -50,10 +50,7 @@ export default function StudentLayout({
           <Sidebar collapsible="icon" className="border-r border-slate-200 dark:border-slate-800">
             <SidebarHeader className="h-16 flex items-center px-4 border-b border-slate-100 dark:border-slate-800/80">
               <div className="flex items-center gap-2 font-bold text-lg text-blue-600 dark:text-blue-400 group-data-[collapsible=icon]:justify-center w-full">
-                <Droplet className="h-5 w-5 fill-current animate-pulse text-blue-500 shrink-0" />
-                <span className="group-data-[collapsible=icon]:hidden font-extrabold tracking-tight">
-                  WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-xl">ash</span>
-                </span>
+                <img src="/favicon.ico" alt="WeWash Logo" className="h-6 w-6 object-contain shrink-0" />
               </div>
             </SidebarHeader>
 

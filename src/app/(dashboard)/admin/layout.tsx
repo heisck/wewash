@@ -12,7 +12,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { 
   LayoutDashboard, Activity, Users, Wrench, 
-  LogOut, Droplet, UserCheck, Menu, Plus, Bell 
+  LogOut, UserCheck, Menu, Plus, Bell 
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -46,17 +46,14 @@ export default function AdminLayout({
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-950 px-6 py-12">
         {/* Top Brand Logo */}
-        <div className="absolute top-8 flex items-center gap-1.5 text-xl font-black text-blue-600 dark:text-blue-400">
-          <Droplet className="h-6 w-6 fill-current animate-pulse text-blue-500" />
-          <span>
-            WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-2xl">ash</span> Admin
-          </span>
+        <div className="absolute top-8">
+          <img src="/favicon.ico" alt="WeWash Logo" className="h-8 w-8 object-contain" />
         </div>
 
         <div className="w-full max-w-[400px] flex flex-col items-center text-center">
           {/* Rounded Accent Icon */}
-          <div className="h-16 w-16 bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 shadow-sm">
-            <Droplet className="h-8 w-8 fill-current" />
+          <div className="h-16 w-16 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mb-6 shadow-xs border border-slate-200/50 dark:border-slate-800">
+            <img src="/favicon.ico" alt="WeWash Logo" className="h-9 w-9 object-contain" />
           </div>
 
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-2">
@@ -160,10 +157,7 @@ export default function AdminLayout({
           <Sidebar collapsible="icon" className="border-r border-slate-200 dark:border-slate-800">
             <SidebarHeader className="h-16 flex items-center px-4 border-b border-slate-100 dark:border-slate-800/80">
               <div className="flex items-center gap-2 font-bold text-lg text-blue-600 dark:text-blue-400 group-data-[collapsible=icon]:justify-center w-full">
-                <Droplet className="h-5 w-5 fill-current animate-pulse text-blue-500 shrink-0" />
-                <span className="group-data-[collapsible=icon]:hidden font-extrabold tracking-tight">
-                  WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-xl">ash</span> Admin
-                </span>
+                <img src="/favicon.ico" alt="WeWash Logo" className="h-6 w-6 object-contain shrink-0" />
               </div>
             </SidebarHeader>
 

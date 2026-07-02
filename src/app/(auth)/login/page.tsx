@@ -1,5 +1,4 @@
 import { LoginForm } from "./login-form";
-import { Droplet } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = {
@@ -11,17 +10,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-950 px-6 py-12">
       {/* Top Brand Logo */}
-      <div className="absolute top-8 flex items-center gap-1.5 text-xl font-black text-blue-600 dark:text-blue-400">
-        <Droplet className="h-6 w-6 fill-current animate-pulse text-blue-500" />
-        <span>
-          WEW<span className="font-[family-name:var(--font-caveat)] font-normal lowercase tracking-normal text-blue-500 text-2xl">ash</span>
-        </span>
+      <div className="absolute top-8">
+        <img src="/favicon.ico" alt="WeWash Logo" className="h-8 w-8 object-contain" />
       </div>
 
       <div className="w-full max-w-[400px] flex flex-col items-center text-center">
-        {/* Rounded Purple-Blue Accent Icon */}
-        <div className="h-16 w-16 bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 shadow-sm">
-          <Droplet className="h-8 w-8 fill-current" />
+        {/* Rounded Accent Icon */}
+        <div className="h-16 w-16 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mb-6 shadow-xs border border-slate-200/50 dark:border-slate-800">
+          <img src="/favicon.ico" alt="WeWash Logo" className="h-9 w-9 object-contain" />
         </div>
 
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-8">
