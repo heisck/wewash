@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Roboto, Caveat } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,11 @@ const caveat = Caveat({
 export const metadata: Metadata = {
   title: "WeWash — Shared Washing Machine Subscriptions",
   description: "Streamlining washing machine access, rotation schedules, payments, and maintenance reporting across university halls.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
