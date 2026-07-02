@@ -1,10 +1,6 @@
 "use client";
 
-import { useState } from "react";
-
 export default function Home() {
-  const [selectedBoxes, setSelectedBoxes] = useState<number[]>([]);
-  
   // Total of 24 logical slots. We skip 11, 16, and 17 because box 10 spans 2x2.
   const boxesToRender = [
     1, 2, 3, 4, 5, 6,
@@ -12,14 +8,6 @@ export default function Home() {
     13, 14, 15, 18,
     19, 20, 21, 22, 23, 24
   ];
-
-  const toggleSelectBox = (num: number) => {
-    if (selectedBoxes.includes(num)) {
-      setSelectedBoxes((prev) => prev.filter((id) => id !== num));
-    } else {
-      setSelectedBoxes((prev) => [...prev, num]);
-    }
-  };
 
   const renderBox = (num: number) => {
     // Box 1 is the brand logo box
@@ -29,11 +17,11 @@ export default function Home() {
           key={num}
           className="relative w-full h-full flex items-center justify-center bg-transparent opacity-100"
         >
-          <div className="absolute top-4 left-4 sm:top-5 sm:left-5">
+          <div className="absolute top-2 left-2 sm:top-4 sm:left-4 md:top-5 md:left-5">
             <img 
               src="/favicon.ico" 
               alt="WeWash Logo" 
-              className="h-10 w-10 sm:h-12 sm:w-12 object-contain" 
+              className="h-6 w-6 sm:h-10 sm:w-10 md:h-12 md:w-12 object-contain" 
             />
           </div>
         </div>
@@ -48,7 +36,7 @@ export default function Home() {
           className="col-span-2 row-span-2 relative w-full h-full flex items-center justify-center p-1 bg-transparent opacity-100 z-20"
         >
           {/* Inner relative container with responsive scaling */}
-          <div className="relative w-full h-full flex items-center justify-center scale-[1.1] sm:scale-[1.25] md:scale-[1.35]">
+          <div className="relative w-full h-full flex items-center justify-center scale-[0.8] sm:scale-[1.1] md:scale-[1.35]">
             <img 
               src="/images/machine.webp" 
               alt="Washing Machine" 
@@ -68,7 +56,7 @@ export default function Home() {
         >
           <svg 
             viewBox="0 0 60 100" 
-            className="h-[80%] sm:h-[110%] md:h-[133.33%] aspect-[60/100] fill-teal-600 dark:fill-teal-400 z-10 relative origin-bottom-right translate-x-[45%] sm:translate-x-[65%] md:translate-x-[90%]"
+            className="fill-teal-600 dark:fill-teal-400 z-10 relative origin-bottom-right h-[80%] sm:h-[110%] md:h-[133.33%] aspect-[60/100] translate-x-[55%] sm:translate-x-[75%] md:translate-x-[90%]"
           >
             <path 
               fillRule="evenodd" 
@@ -89,7 +77,7 @@ export default function Home() {
           {/* The Mirrored P */}
           <svg 
             viewBox="0 0 60 100" 
-            className="absolute left-0 h-[80%] sm:h-[110%] md:h-[133.33%] aspect-[60/100] fill-teal-600 dark:fill-teal-400 z-10 origin-bottom-left translate-x-[10%] sm:translate-x-[12%] md:translate-x-[15%] scale-x-[-1]"
+            className="absolute left-0 fill-teal-600 dark:fill-teal-400 z-10 origin-bottom-left h-[80%] sm:h-[110%] md:h-[133.33%] aspect-[60/100] translate-x-[10%] sm:translate-x-[12%] md:translate-x-[15%] scale-x-[-1]"
           >
             <path 
               fillRule="evenodd" 
@@ -100,7 +88,7 @@ export default function Home() {
           {/* The Blocky 'y' - positioned from the right edge so it never overflows the viewport */}
           <svg 
             viewBox="0 0 60 100" 
-            className="absolute right-[5%] h-[80%] sm:h-[110%] md:h-[133.33%] aspect-[60/100] fill-teal-600 dark:fill-teal-400 z-10 origin-bottom-right"
+            className="absolute fill-teal-600 dark:fill-teal-400 z-10 origin-bottom-right h-[80%] sm:h-[110%] md:h-[133.33%] aspect-[60/100] right-[3%] sm:right-[4%] md:right-[5%]"
           >
             <path 
               fillRule="evenodd" 
@@ -111,7 +99,7 @@ export default function Home() {
       );
     }
 
-    // Normal numbered box (now empty/scaffolding hidden)
+    // Normal empty box
     return (
       <div
         key={num}
