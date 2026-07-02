@@ -28,6 +28,9 @@ export default function RootLayout({
       lang="en"
       className={`${roboto.variable} ${caveat.variable} h-full antialiased`}
     >
+      <head>
+        <meta name="apple-mobile-web-app-title" content="wewash" />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
