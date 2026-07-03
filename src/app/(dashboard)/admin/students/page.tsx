@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Users, UserPlus, CreditCard, Send, Search, CheckCircle, AlertCircle, Sparkles } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { UserPlus, CreditCard, Send, Search } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel,
+  PixelSelect, PixelTd, PixelTh,
+} from "@/components/pixel/pixel-ui";
+
+type PaymentStatus = "PAID" | "UNPAID" | "OVERDUE";
 
 type Student = {
   id: string;
@@ -18,62 +20,23 @@ type Student = {
   room: string;
   phone: string;
   contractStatus: "ACTIVE" | "EXPIRED" | "TERMINATED";
-  paymentStatus: "PAID" | "UNPAID" | "OVERDUE";
+  paymentStatus: PaymentStatus;
   outstandingBalance: number;
 };
 
 const initialStudents: Student[] = [
-  {
-    id: "s1",
-    name: "John Doe",
-    studentId: "UCC/ATL/24/0045",
-    room: "Room 101",
-    phone: "+233241234567",
-    contractStatus: "ACTIVE",
-    paymentStatus: "PAID",
-    outstandingBalance: 0.0,
-  },
-  {
-    id: "s2",
-    name: "Sarah Mensah",
-    studentId: "UCC/ATL/24/0112",
-    room: "Room 102",
-    phone: "+233559876543",
-    contractStatus: "ACTIVE",
-    paymentStatus: "UNPAID",
-    outstandingBalance: 35.0,
-  },
-  {
-    id: "s3",
-    name: "Emmanuel Boateng",
-    studentId: "UCC/ATL/24/0089",
-    room: "Room 103",
-    phone: "+233201112223",
-    contractStatus: "ACTIVE",
-    paymentStatus: "OVERDUE",
-    outstandingBalance: 70.0, // 2 weeks overdue
-  },
-  {
-    id: "s4",
-    name: "Abigail Larbi",
-    studentId: "UCC/ATL/24/0290",
-    room: "Room 201",
-    phone: "+233504445555",
-    contractStatus: "ACTIVE",
-    paymentStatus: "PAID",
-    outstandingBalance: 0.0,
-  },
-  {
-    id: "s5",
-    name: "Michael Tetteh",
-    studentId: "UCC/ATL/24/0301",
-    room: "Room 202",
-    phone: "+233245556667",
-    contractStatus: "ACTIVE",
-    paymentStatus: "UNPAID",
-    outstandingBalance: 40.0,
-  },
+  { id: "s1", name: "John Doe", studentId: "UCC/ATL/24/0045", room: "Room 101", phone: "+233241234567", contractStatus: "ACTIVE", paymentStatus: "PAID", outstandingBalance: 0.0 },
+  { id: "s2", name: "Sarah Mensah", studentId: "UCC/ATL/24/0112", room: "Room 102", phone: "+233559876543", contractStatus: "ACTIVE", paymentStatus: "UNPAID", outstandingBalance: 35.0 },
+  { id: "s3", name: "Emmanuel Boateng", studentId: "UCC/ATL/24/0089", room: "Room 103", phone: "+233201112223", contractStatus: "ACTIVE", paymentStatus: "OVERDUE", outstandingBalance: 70.0 },
+  { id: "s4", name: "Abigail Larbi", studentId: "UCC/ATL/24/0290", room: "Room 201", phone: "+233504445555", contractStatus: "ACTIVE", paymentStatus: "PAID", outstandingBalance: 0.0 },
+  { id: "s5", name: "Michael Tetteh", studentId: "UCC/ATL/24/0301", room: "Room 202", phone: "+233245556667", contractStatus: "ACTIVE", paymentStatus: "UNPAID", outstandingBalance: 40.0 },
 ];
+
+const paymentTone: Record<PaymentStatus, "green" | "amber" | "red"> = {
+  PAID: "green",
+  UNPAID: "amber",
+  OVERDUE: "red",
+};
 
 export default function AdminStudents() {
   const [students, setStudents] = useState<Student[]>(initialStudents);
@@ -104,23 +67,10 @@ export default function AdminStudents() {
       })
     );
 
-    // Reset Form
+    toast.success(`GHS ${amount.toFixed(2)} recorded for ${selectedStudent.name}.`);
     setSelectedStudent(null);
     setPaymentAmount("");
     setPaymentRef("");
-  };
-
-  const getPaymentBadge = (status: string) => {
-    switch (status) {
-      case "PAID":
-        return <Badge className="bg-green-500 hover:bg-green-600 text-white">Paid</Badge>;
-      case "UNPAID":
-        return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">Unpaid</Badge>;
-      case "OVERDUE":
-        return <Badge className="bg-red-500 hover:bg-red-600 text-white">Overdue</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
   };
 
   const filteredStudents = students.filter(
@@ -131,156 +81,165 @@ export default function AdminStudents() {
   );
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6 bg-gray-50/30 dark:bg-gray-900/10">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Student Subscriptions</h2>
-            <p className="text-sm text-muted-foreground">Manage active student rosters, contract compliance, and record weekly dues.</p>
-          </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-full">
-            <UserPlus className="mr-2 h-4 w-4" /> Register Student
-          </Button>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search students by name, room, or ID..."
-              className="pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Students Table */}
-        <Card className="shadow-sm border-blue-100/50">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Student ID</TableHead>
-                  <TableHead>Room</TableHead>
-                  <TableHead>Phone Number</TableHead>
-                  <TableHead>Contract</TableHead>
-                  <TableHead>Payment Status</TableHead>
-                  <TableHead className="text-right">Dues Outstanding</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStudents.length > 0 ? (
-                  filteredStudents.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell className="font-semibold">{student.name}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{student.studentId}</TableCell>
-                      <TableCell className="font-medium text-blue-600 dark:text-blue-400">{student.room}</TableCell>
-                      <TableCell className="text-xs font-mono">{student.phone}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-blue-600 border-blue-200">
-                          {student.contractStatus}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{getPaymentBadge(student.paymentStatus)}</TableCell>
-                      <TableCell className="text-right font-semibold">
-                        GHS {student.outstandingBalance.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right space-x-1">
-                        <Dialog>
-                          <DialogTrigger
-                            className="inline-flex items-center justify-center rounded-md text-xs font-medium border border-blue-200 bg-transparent hover:bg-blue-50/50 h-8 px-3 cursor-pointer"
-                            onClick={() => setSelectedStudent(student)}
-                          >
-                            <CreditCard className="mr-1 h-3.5 w-3.5 text-blue-500" /> Pay
-                          </DialogTrigger>
-                          {selectedStudent?.id === student.id && (
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Record Manual Payment</DialogTitle>
-                                <DialogDescription>
-                                  Enter payment details received from <strong>{student.name}</strong> ({student.room}).
-                                </DialogDescription>
-                              </DialogHeader>
-                              <form onSubmit={handleRecordPayment} className="space-y-4 py-2">
-                                <div className="space-y-2">
-                                  <Label htmlFor="amount">Amount Paid (GHS)</Label>
-                                  <Input
-                                    id="amount"
-                                    type="number"
-                                    step="0.01"
-                                    placeholder={student.outstandingBalance.toString()}
-                                    value={paymentAmount}
-                                    onChange={(e) => setPaymentAmount(e.target.value)}
-                                    required
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="method">Payment Method</Label>
-                                  <Select value={paymentMethod} onValueChange={(val) => setPaymentMethod(val || "")}>
-                                    <SelectTrigger id="method">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="MOBILE_MONEY">Mobile Money (MTN/Vodafone)</SelectItem>
-                                      <SelectItem value="CASH">Hand-delivered Cash</SelectItem>
-                                      <SelectItem value="BANK_TRANSFER">Bank Direct Transfer</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="ref">MoMo Transaction ID / Reference</Label>
-                                  <Input
-                                    id="ref"
-                                    placeholder="e.g., TXN2026070188"
-                                    value={paymentRef}
-                                    onChange={(e) => setPaymentRef(e.target.value)}
-                                    required={paymentMethod === "MOBILE_MONEY"}
-                                  />
-                                </div>
-                                <DialogFooter className="pt-4">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setSelectedStudent(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-                                    Record Payment
-                                  </Button>
-                                </DialogFooter>
-                              </form>
-                            </DialogContent>
-                          )}
-                        </Dialog>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-xs hover:text-blue-600"
-                          onClick={() => {
-                            alert(`SMS reminder triggered via Arkesel client to ${student.phone}`);
-                          }}
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                      No matching students found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <PageTitle text="STUDENTS" sub="Rosters, contracts & weekly dues" />
+        <PixelButton onClick={() => toast.info("Student registration form coming soon.")}>
+          <UserPlus className="h-3.5 w-3.5" /> Register student
+        </PixelButton>
       </div>
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-900/40 dark:text-teal-100/40" />
+        <PixelInput
+          placeholder="Search by name, room, or ID..."
+          className="pl-10"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* Roster table */}
+      <PixelCard className="overflow-x-auto">
+        <table className="w-full min-w-[880px] text-left">
+          <thead>
+            <tr className="border-b-2 border-teal-900/15 dark:border-teal-100/15">
+              <PixelTh className="pt-4">Student</PixelTh>
+              <PixelTh className="pt-4">Student ID</PixelTh>
+              <PixelTh className="pt-4">Room</PixelTh>
+              <PixelTh className="pt-4">Phone</PixelTh>
+              <PixelTh className="pt-4">Contract</PixelTh>
+              <PixelTh className="pt-4">Payment</PixelTh>
+              <PixelTh className="pt-4 text-right">Outstanding</PixelTh>
+              <PixelTh className="pt-4 text-right">Actions</PixelTh>
+            </tr>
+          </thead>
+          <tbody className="divide-y-2 divide-teal-900/5 dark:divide-teal-100/5">
+            {filteredStudents.length > 0 ? (
+              filteredStudents.map((student) => (
+                <tr
+                  key={student.id}
+                  className="transition-colors hover:bg-teal-600/5 dark:hover:bg-teal-400/5"
+                >
+                  <PixelTd className="font-black">{student.name}</PixelTd>
+                  <PixelTd className="text-[10px] text-teal-900/50 dark:text-teal-100/50">
+                    {student.studentId}
+                  </PixelTd>
+                  <PixelTd className="font-black text-teal-700 dark:text-teal-300">
+                    {student.room}
+                  </PixelTd>
+                  <PixelTd className="font-mono text-[10px] text-teal-900/60 dark:text-teal-100/60">
+                    {student.phone}
+                  </PixelTd>
+                  <PixelTd>
+                    <PixelBadge tone="teal">{student.contractStatus}</PixelBadge>
+                  </PixelTd>
+                  <PixelTd>
+                    <PixelBadge tone={paymentTone[student.paymentStatus]}>
+                      {student.paymentStatus}
+                    </PixelBadge>
+                  </PixelTd>
+                  <PixelTd className="text-right font-black">
+                    GHS {student.outstandingBalance.toFixed(2)}
+                  </PixelTd>
+                  <PixelTd className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <PixelButton
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedStudent(student)}
+                      >
+                        <CreditCard className="h-3 w-3" /> Pay
+                      </PixelButton>
+                      <PixelButton
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Send SMS reminder to ${student.name}`}
+                        onClick={() =>
+                          toast.success(`SMS reminder queued via Arkesel to ${student.phone}.`)
+                        }
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </PixelButton>
+                    </div>
+                  </PixelTd>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="py-8 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40"
+                >
+                  No matching students found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </PixelCard>
+
+      {/* Record payment dialog */}
+      <Dialog
+        open={selectedStudent !== null}
+        onOpenChange={(open) => !open && setSelectedStudent(null)}
+      >
+        <DialogContent className="border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-wider">
+              Record manual payment
+            </DialogTitle>
+            <DialogDescription>
+              Enter payment details received from <strong>{selectedStudent?.name}</strong> (
+              {selectedStudent?.room}).
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRecordPayment} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <PixelLabel htmlFor="amount">Amount paid (GHS)</PixelLabel>
+              <PixelInput
+                id="amount"
+                type="number"
+                step="0.01"
+                placeholder={selectedStudent?.outstandingBalance.toString()}
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="method">Payment method</PixelLabel>
+              <PixelSelect
+                id="method"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+              >
+                <option value="MOBILE_MONEY">Mobile Money (MTN/Vodafone)</option>
+                <option value="CASH">Hand-delivered Cash</option>
+                <option value="BANK_TRANSFER">Bank Direct Transfer</option>
+              </PixelSelect>
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="ref">MoMo transaction ID / reference</PixelLabel>
+              <PixelInput
+                id="ref"
+                placeholder="e.g., TXN2026070188"
+                value={paymentRef}
+                onChange={(e) => setPaymentRef(e.target.value)}
+                required={paymentMethod === "MOBILE_MONEY"}
+              />
+            </div>
+            <DialogFooter className="gap-2 pt-4">
+              <PixelButton type="button" variant="outline" onClick={() => setSelectedStudent(null)}>
+                Cancel
+              </PixelButton>
+              <PixelButton type="submit">Record payment</PixelButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

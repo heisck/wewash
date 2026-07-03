@@ -49,30 +49,31 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.99 0.01 180);
+  --foreground: oklch(0.2 0.04 192);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2 0.04 192);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.2 0.04 192);
+  --primary: oklch(0.6 0.105 184.7);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.96 0.02 180);
+  --secondary-foreground: oklch(0.28 0.05 192);
+  --muted: oklch(0.96 0.02 180);
+  --muted-foreground: oklch(0.5 0.03 190);
+  --accent: oklch(0.96 0.02 180);
+  --accent-foreground: oklch(0.28 0.05 192);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.88 0.03 185);
+  --input: oklch(0.88 0.03 185);
+  --ring: oklch(0.6 0.105 184.7);
+  --pixel-shadow: rgb(13 148 136 / 0.22);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -84,24 +85,25 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.17 0.03 192);
+  --foreground: oklch(0.97 0.01 180);
+  --card: oklch(0.22 0.035 192);
+  --card-foreground: oklch(0.97 0.01 180);
+  --popover: oklch(0.22 0.035 192);
+  --popover-foreground: oklch(0.97 0.01 180);
+  --primary: oklch(0.78 0.12 182);
+  --primary-foreground: oklch(0.2 0.04 192);
+  --secondary: oklch(0.28 0.04 192);
+  --secondary-foreground: oklch(0.97 0.01 180);
+  --muted: oklch(0.28 0.04 192);
+  --muted-foreground: oklch(0.72 0.03 185);
+  --accent: oklch(0.28 0.04 192);
+  --accent-foreground: oklch(0.97 0.01 180);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.78 0.12 182);
+  --pixel-shadow: rgb(0 0 0 / 0.45);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -127,5 +129,43 @@
   }
   html {
     font-family: var(--font-roboto), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* The panel behind the page: on iOS/Android overscroll (rubber-banding)
+       the root element shows through — keep it on-theme, never white. */
+    background-color: #f0fdfc;
+  }
+  .dark html,
+  html.dark {
+    background-color: #04100f;
+  }
+}
+
+/* ─── WeWash pixel design system utilities ─── */
+@layer utilities {
+  /* Hard offset shadows — the "arcade button" depth cue. */
+  .shadow-pixel {
+    box-shadow: 4px 4px 0 0 var(--pixel-shadow, rgb(13 148 136 / 0.22));
+  }
+  .shadow-pixel-sm {
+    box-shadow: 3px 3px 0 0 var(--pixel-shadow, rgb(13 148 136 / 0.22));
+  }
+  .shadow-pixel-lg {
+    box-shadow: 6px 6px 0 0 var(--pixel-shadow, rgb(13 148 136 / 0.22));
+  }
+  .shadow-pixel-none {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  /* Subtle checkerboard canvas texture. */
+  .bg-pixel-checker {
+    background-image: repeating-conic-gradient(
+      rgb(13 148 136 / 0.05) 0% 25%,
+      transparent 0% 50%
+    );
+    background-size: 28px 28px;
+  }
+  .dark .bg-pixel-checker {
+    background-image: repeating-conic-gradient(
+      rgb(45 212 191 / 0.04) 0% 25%,
+      transparent 0% 50%
+    );
   }
 }

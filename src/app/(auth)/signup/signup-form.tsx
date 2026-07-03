@@ -9,23 +9,27 @@ import {
   PixelCard,
   PixelInput,
   PixelLabel,
+  PixelSelect,
 } from "@/components/pixel/pixel-ui";
 
-export function LoginForm() {
+export function SignupForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [hall, setHall] = useState("ATLANTIC");
+  const [room, setRoom] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate login and redirect to the Student Dashboard
+    // Simulate registration and drop straight into the Student Dashboard
     setTimeout(() => {
       setIsLoading(false);
-      toast.success("Welcome back! Machine's all yours.");
+      toast.success(`Welcome aboard, ${fullName.split(" ")[0] || "friend"}! Your rotation slot is ready.`);
       router.push("/student");
-    }, 1000);
+    }, 1100);
   };
 
   return (
@@ -38,7 +42,7 @@ export function LoginForm() {
         onClick={() => router.push("/student")}
       >
         <GoogleGlyph className="h-4 w-4" />
-        Continue with Google
+        Sign up with Google
       </PixelButton>
 
       {/* Divider */}
@@ -51,6 +55,18 @@ export function LoginForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 text-left">
+        <div className="space-y-2">
+          <PixelLabel htmlFor="fullName">Full name</PixelLabel>
+          <PixelInput
+            id="fullName"
+            placeholder="John Doe"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            autoComplete="name"
+            required
+          />
+        </div>
+
         <div className="space-y-2">
           <PixelLabel htmlFor="phone">Phone number</PixelLabel>
           <div className="flex">
@@ -67,14 +83,37 @@ export function LoginForm() {
               required
             />
           </div>
-          <p className="text-[10px] font-semibold text-teal-900/40 dark:text-teal-100/40">
-            We'll text a one-time code to this number.
-          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <PixelLabel htmlFor="hall">Hall</PixelLabel>
+            <PixelSelect id="hall" value={hall} onChange={(e) => setHall(e.target.value)}>
+              <option value="ATLANTIC">Atlantic Hall</option>
+              <option value="CASFORD">Casford Hall</option>
+              <option value="OGUAA">Oguaa Hall</option>
+              <option value="VALCO">Valco Hall</option>
+            </PixelSelect>
+          </div>
+          <div className="space-y-2">
+            <PixelLabel htmlFor="room">Room</PixelLabel>
+            <PixelInput
+              id="room"
+              placeholder="104"
+              value={room}
+              onChange={(e) => setRoom(e.target.value)}
+              required
+            />
+          </div>
         </div>
 
         <PixelButton type="submit" size="lg" className="w-full" disabled={isLoading}>
-          {isLoading ? "Signing in..." : "Continue"}
+          {isLoading ? "Creating account..." : "Create account"}
         </PixelButton>
+
+        <p className="text-center text-[10px] font-semibold text-teal-900/40 dark:text-teal-100/40">
+          GHS 50 one-time setup - GHS 35/week shared dues
+        </p>
       </form>
     </PixelCard>
   );

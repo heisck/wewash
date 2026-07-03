@@ -1,96 +1,76 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Draggable } from "gsap/Draggable";
+import { toast } from "sonner";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(Draggable);
 }
+
 import {
-  Bell, Calendar, CreditCard, Droplet, FileWarning, LogOut,
-  Settings, Info, AlertTriangle, ShieldCheck, ArrowRight, Sparkles,
-  ChevronRight, TrendingUp, HelpCircle, Lock, Search, Plus, Mic,
-  WrenchIcon, Smile, Meh, Frown, Heart, Star, Wrench, Activity, ScanLine, MessageSquare
+  ScanLine, Smile, Meh, Frown, Heart, Star, MessageSquare,
+  Wrench, CreditCard, FileSignature, TicketCheck,
 } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { BlockyText, FONT3 } from "@/components/pixel/blocky-text";
+import {
+  PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel,
+  PixelSelect, PixelTextarea, SectionTitle, SegmentBar,
+} from "@/components/pixel/pixel-ui";
+
+const HOURS_USED = 10;
+const WINDOW_HOURS = 24;
 
 export default function StudentDashboard() {
-  const router = useRouter();
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [faultTitle, setFaultTitle] = useState("");
   const [faultDesc, setFaultDesc] = useState("");
   const [faultSeverity, setFaultSeverity] = useState("MEDIUM");
   const [faultMachine, setFaultMachine] = useState("WEWASH-W01-ATL");
   const [recentActivities, setRecentActivities] = useState([
-    { title: "Weekly Dues Paid", detail: "GHS 35.00 via Mobile Money", date: "Today, 10:15 AM" },
-    { title: "Setup Fee Paid", detail: "GHS 50.00 manual registration", date: "Oct 1, 2026" },
-    { title: "Washing Contract Signed", detail: "Valid for Fall Semester 2026", date: "Oct 1, 2026" },
+    { title: "Weekly Dues Paid", detail: "GHS 35.00 via Mobile Money", date: "Today, 10:15 AM", icon: CreditCard },
+    { title: "Setup Fee Paid", detail: "GHS 50.00 manual registration", date: "Oct 1, 2026", icon: CreditCard },
+    { title: "Washing Contract Signed", detail: "Valid for Fall Semester 2026", date: "Oct 1, 2026", icon: FileSignature },
   ]);
   const [feedbackRating, setFeedbackRating] = useState<"frown" | "meh" | "smile" | "heart" | "star">("smile");
   const [isFeedbackCollapsed, setIsFeedbackCollapsed] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
-  const dividerRef = useRef<HTMLDivElement>(null);
   const tabRef = useRef<HTMLButtonElement>(null);
 
   useGSAP(() => {
     if (isFeedbackCollapsed) {
-      // Collapse card & divider
       gsap.to(cardRef.current, {
         height: 0,
         opacity: 0,
-        scale: 0.9,
-        y: 20,
+        scale: 0.95,
+        y: 16,
         duration: 0.4,
         ease: "power2.inOut",
         onComplete: () => {
           if (cardRef.current) cardRef.current.style.display = "none";
-        }
+        },
       });
-      gsap.to(dividerRef.current, {
-        opacity: 0,
-        duration: 0.3,
-        ease: "power2.inOut",
-        onComplete: () => {
-          if (dividerRef.current) dividerRef.current.style.display = "none";
-        }
-      });
-      // Show tab
-      gsap.fromTo(tabRef.current, 
+      gsap.fromTo(
+        tabRef.current,
         { opacity: 0, scale: 0, x: 50 },
-        { 
+        {
           display: "flex",
-          opacity: 1, 
-          scale: 1, 
+          opacity: 1,
+          scale: 1,
           x: 0,
-          duration: 0.4, 
+          duration: 0.4,
           delay: 0.2,
           ease: "back.out(1.5)",
-          pointerEvents: "auto"
+          pointerEvents: "auto",
         }
       );
     } else {
-      // Hide tab
       gsap.to(tabRef.current, {
         opacity: 0,
         scale: 0,
@@ -100,26 +80,17 @@ export default function StudentDashboard() {
         pointerEvents: "none",
         onComplete: () => {
           if (tabRef.current) tabRef.current.style.display = "none";
-        }
+        },
       });
-      // Show card & divider
       if (cardRef.current) {
-        cardRef.current.style.display = "flex";
+        cardRef.current.style.display = "block";
         gsap.to(cardRef.current, {
           height: "auto",
           opacity: 1,
           scale: 1,
           y: 0,
           duration: 0.5,
-          ease: "back.out(1.2)"
-        });
-      }
-      if (dividerRef.current) {
-        dividerRef.current.style.display = "block";
-        gsap.to(dividerRef.current, {
-          opacity: 1,
-          duration: 0.3,
-          ease: "power2.inOut"
+          ease: "back.out(1.2)",
         });
       }
     }
@@ -133,307 +104,328 @@ export default function StudentDashboard() {
         edgeResistance: 0.65,
         onClick: () => {
           setIsFeedbackCollapsed(false);
-        }
+        },
       });
     }
   }, []);
 
   const feedbackConfig = {
-    frown: { Icon: Frown, label: "Could be better", color: "text-red-500" },
-    meh: { Icon: Meh, label: "Just okay", color: "text-amber-500" },
-    smile: { Icon: Smile, label: "Smooth & Clean", color: "text-blue-500" },
-    heart: { Icon: Heart, label: "Loved the service!", color: "text-rose-500 animate-pulse" },
-    star: { Icon: Star, label: "Excellent experience!", color: "text-yellow-500" }
-  };
+    frown: { Icon: Frown, label: "COULD BE BETTER", active: "bg-rose-500 border-rose-950/60 text-white" },
+    meh: { Icon: Meh, label: "JUST OKAY", active: "bg-amber-500 border-amber-950/60 text-white" },
+    smile: { Icon: Smile, label: "SMOOTH & CLEAN", active: "bg-teal-600 border-teal-950/60 text-white" },
+    heart: { Icon: Heart, label: "LOVED THE SERVICE!", active: "bg-rose-400 border-rose-950/60 text-white" },
+    star: { Icon: Star, label: "EXCELLENT EXPERIENCE!", active: "bg-yellow-400 border-yellow-950/60 text-yellow-950" },
+  } as const;
 
   const activeFeedback = feedbackConfig[feedbackRating];
   const FeedbackIcon = activeFeedback.Icon;
 
   const handleReportFault = (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Fault reported! Admin has been notified of "${faultTitle}" on ${faultMachine}`);
+    toast.success(`Ticket sent — admin notified of "${faultTitle}" on ${faultMachine}.`);
 
-    // Add to simulated log
-    const newActivity = {
-      title: "Fault Ticket Created",
-      detail: `Reported: ${faultTitle} (${faultSeverity})`,
-      date: "Just now",
-    };
-    setRecentActivities([newActivity, ...recentActivities]);
+    setRecentActivities([
+      {
+        title: "Fault Ticket Created",
+        detail: `Reported: ${faultTitle} (${faultSeverity})`,
+        date: "Just now",
+        icon: Wrench,
+      },
+      ...recentActivities,
+    ]);
 
-    // Reset fields
     setFaultTitle("");
     setFaultDesc("");
     setIsReportOpen(false);
   };
 
   return (
-    <div className="space-y-0">
-      {/* 2. Sub-Header Row */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-10 w-full">
-        {/* Left Side: Date widget & Fault dialog trigger - Always on one line, shrinking responsively */}
-        <div className="flex flex-nowrap items-center gap-2 sm:gap-4 w-full lg:w-auto min-w-0">
-          {/* Day number Circle */}
-          <div className="h-12 w-12 sm:h-16 sm:w-16 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-full flex flex-col items-center justify-center font-bold text-slate-800 dark:text-slate-100 shadow-xs relative shrink-0">
-            <span className="text-sm sm:text-[20px] font-black leading-none">19</span>
-            <span className="absolute bottom-1 sm:bottom-1.5 h-1 w-1 bg-red-500 rounded-full" />
-          </div>
-
-          {/* Date Label */}
-          <div className="h-8 w-px bg-slate-300 dark:bg-slate-800 hidden sm:block shrink-0" />
-          <div className="min-w-0 shrink">
-            <p className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider truncate">Wed, December</p>
-            <p className="text-[10px] sm:text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-0.5 truncate">Today: Wed 8 PM - Thu 8 PM</p>
-          </div>
-
-          {/* Coral pill CTA button (Report Fault) */}
-          <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
-            <DialogTrigger
-              className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full px-3 sm:px-6 h-9 sm:h-11 font-bold text-[10px] sm:text-xs flex items-center gap-1 sm:gap-2 cursor-pointer shadow-md shadow-blue-500/10 shrink-0 ml-1 sm:ml-4"
-            >
-              Report Fault <ArrowRight className="h-3.5 w-3.5" />
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Report Machine Fault</DialogTitle>
-                <DialogDescription>
-                  Help us keep WeWash running. Submit details of the fault.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleReportFault} className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label htmlFor="machine">Machine</Label>
-                  <Select value={faultMachine} onValueChange={(val) => setFaultMachine(val || "WEWASH-W01-ATL")}>
-                    <SelectTrigger id="machine">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="WEWASH-W01-ATL">WEWASH-W01-ATL (Floor 1 Group)</SelectItem>
-                      <SelectItem value="WEWASH-W02-ATL">WEWASH-W02-ATL (Floor 2 Group)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="issue">Issue Summary</Label>
-                  <Input
-                    id="issue"
-                    placeholder="e.g. Spin cycle is extremely noisy, or water won't drain"
-                    value={faultTitle}
-                    onChange={(e) => setFaultTitle(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="details">Detailed Description</Label>
-                  <textarea
-                    id="details"
-                    placeholder="Please explain what happened and any error codes shown on the display..."
-                    value={faultDesc}
-                    onChange={(e) => setFaultDesc(e.target.value)}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-                    required
-                  ></textarea>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="severity">Severity</Label>
-                  <Select value={faultSeverity} onValueChange={(val) => setFaultSeverity(val || "MEDIUM")}>
-                    <SelectTrigger id="severity">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LOW">Low (Cosmetic/minor delay)</SelectItem>
-                      <SelectItem value="MEDIUM">Medium (Vibrating/noise but washes)</SelectItem>
-                      <SelectItem value="HIGH">High (Blocked drain/incomplete spin)</SelectItem>
-                      <SelectItem value="CRITICAL">Critical (Total breakdown/no power)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <DialogFooter className="pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsReportOpen(false)}>Cancel</Button>
-                  <Button type="submit" className="bg-red-600 hover:bg-red-700 text-white">Submit Ticket</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* Scan Machine Button */}
-          <button
-            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full px-3 sm:px-5 h-9 sm:h-11 font-bold text-[10px] sm:text-xs flex items-center gap-1 sm:gap-2 cursor-pointer shadow-md shadow-blue-500/10 ml-1 sm:ml-2 transition-all"
-            onClick={() => alert('Opening QR scanner...')}
-          >
-            <ScanLine className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Scan Machine</span>
-          </button>
-
-        </div>
-      </div>
-
-      {/* Edge-to-edge divider 1 */}
-      <div className="border-t border-slate-200 dark:border-slate-800 -mx-6 md:-mx-8" />
-
-      {/* Section 2: Active Appliance Clock/Dial */}
-      <div className="py-12 w-full">
-        {/* Unified Active Appliance Dial - Frameless */}
-        <div className="relative min-h-[280px] sm:min-h-[340px] flex items-center justify-center">
-
-          {/* Top Left Identifiers */}
-          <div className="absolute top-6 left-6 z-20">
-            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ACTIVE APPLIANCE</p>
-            <h3 className="text-sm font-black text-slate-950 dark:text-white mt-0.5 truncate">WEWASH-W01-ATL</h3>
-          </div>
-
-          {/* Bottom Left Status */}
-          <div className="absolute bottom-6 left-6 z-20 flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-[#2563eb] animate-pulse" />
-            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Rotation Group 1</span>
-          </div>
-
-          {/* Rotation Indicator — circular badge on the left side of the clock */}
-          <div className="absolute top-1/2 left-[8%] sm:left-[12%] md:left-[16%] -translate-y-1/2 z-20">
-            <div className="relative h-14 w-14 sm:h-16 sm:w-16">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="3" className="text-slate-100 dark:text-slate-800" />
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#2563eb" strokeWidth="3" strokeDasharray="176" strokeDashoffset="151" strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-none">1</span>
-                <span className="text-[6px] sm:text-[7px] font-bold text-slate-400 uppercase">Day</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Right Info */}
-          <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end text-right hidden sm:flex">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Room 104</span>
-            <span className="text-xs font-black text-[#2563eb]">In Use Today</span>
-          </div>
-
-          {/* Dial Container */}
-          <div className="relative w-full h-full flex items-center justify-center max-w-[400px] mx-auto mt-4 sm:mt-0">
-
-            {/* Concentric outer arc for menu (Clipped) */}
-            <div
-              className="absolute w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[320px] md:h-[320px] rounded-full border-[20px] sm:border-[24px] md:border-[30px] border-slate-200/40 dark:border-slate-800/60"
-              style={{ clipPath: 'polygon(75% 15%, 100% 0%, 100% 100%, 75% 85%)' }}
+    <div className="space-y-8">
+      {/* ─── Header row ─── */}
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex items-end gap-4">
+          {/* Date block */}
+          <PixelCard className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5">
+            <BlockyText
+              text="19"
+              font={FONT3}
+              className="fill-teal-950 dark:fill-white"
+              style={{ height: "18px" }}
             />
+            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-teal-900/50 dark:text-teal-100/50">
+              Dec
+            </span>
+          </PixelCard>
+          <PageTitle text="TODAY" sub="Your window: Wed 8PM - Thu 8PM" />
+        </div>
 
-            {/* Icons floating perfectly on the arc */}
-            <div className="absolute w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[320px] md:h-[320px] rounded-full pointer-events-none z-20">
-              {/* Settings */}
-              <button onClick={() => router.push('/student/settings')} className="pointer-events-auto absolute top-[14%] right-[10%] md:top-[16%] md:right-[13%] h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center text-slate-400 hover:text-[#2563eb] hover:bg-white hover:shadow-md dark:hover:bg-slate-700 transition-all cursor-pointer bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700">
-                <Settings className="h-3 w-3 sm:h-4 sm:w-4" />
-              </button>
-              {/* Center Drop / Guidelines */}
-              <button onClick={() => router.push('/student/guidelines')} className="pointer-events-auto absolute top-1/2 right-[-14px] md:right-[-6px] -translate-y-1/2 h-9 w-9 sm:h-11 sm:w-11 rounded-full flex items-center justify-center text-slate-500 hover:text-[#2563eb] hover:bg-white hover:shadow-md dark:hover:bg-slate-700 transition-all cursor-pointer bg-white dark:bg-slate-800 shadow-sm border border-slate-200/50 dark:border-slate-700">
-                <Droplet className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
-              {/* Chart/Info */}
-              <button onClick={() => router.push('/student/billing')} className="pointer-events-auto absolute bottom-[14%] right-[10%] md:bottom-[16%] md:right-[13%] h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center text-slate-400 hover:text-[#2563eb] hover:bg-white hover:shadow-md dark:hover:bg-slate-700 transition-all cursor-pointer bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700">
-                <Activity className="h-3 w-3 sm:h-4 sm:w-4" />
-              </button>
-            </div>
-
-            {/* The Main Dial / Clock (No Background) */}
-            <div className="absolute w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[320px] md:h-[320px] flex flex-col items-center justify-center z-10 pointer-events-none">
-
-              {/* Massive Outer Dashed Ring & Clock Hand */}
-              <svg className="absolute inset-0 w-full h-full opacity-40 dark:opacity-30">
-                <circle
-                  cx="50%" cy="50%" r="48%"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  className="text-slate-400 dark:text-slate-500"
-                  strokeDasharray="4 8"
-                />
-                {/* Clock Hand (pointing to 210 degrees / approx 14h) */}
-                <line
-                  x1="50%" y1="50%" x2="50%" y2="8%"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  className="text-slate-500 dark:text-slate-400"
-                  style={{ transform: 'rotate(210deg)', transformOrigin: 'center' }}
-                  strokeLinecap="round"
-                />
-              </svg>
-
-              {/* Center Text content (Blurred background masks clock hand overlap) */}
-              <div className="relative z-20 flex flex-col items-center justify-center w-24 h-24 sm:w-36 sm:h-36 rounded-full backdrop-blur-md bg-white/30 dark:bg-slate-900/40 shadow-2xl shadow-white/20 dark:shadow-slate-900/20 border border-white/50 dark:border-slate-800/50">
-                <span className="text-[7px] sm:text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-0.5 sm:mb-1">Time Left</span>
-                <h2 className="text-3xl sm:text-5xl md:text-6xl font-light text-slate-900 dark:text-white tracking-tighter leading-none">
-                  14<span className="text-base sm:text-xl md:text-2xl text-slate-400 font-normal ml-0.5">h</span>
-                </h2>
-              </div>
-            </div>
-
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <PixelButton variant="danger" onClick={() => setIsReportOpen(true)}>
+            <Wrench className="h-3.5 w-3.5" />
+            Report fault
+          </PixelButton>
+          <PixelButton onClick={() => toast.info("Opening QR scanner...")}>
+            <ScanLine className="h-3.5 w-3.5" />
+            Scan machine
+          </PixelButton>
         </div>
       </div>
 
-      {/* Edge-to-edge divider 2 */}
-      <div ref={dividerRef} className="border-t border-slate-200 dark:border-slate-800 -mx-6 md:-mx-8" />
-
-      {/* Card: Rating Feedback */}
-      <Card ref={cardRef} className="max-w-lg mx-auto shadow-xs border-slate-200/50 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-8 flex flex-col justify-between min-h-[340px] w-full my-12">
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Hostel Feedback</h3>
-            <p className="text-xs text-slate-400 font-semibold leading-normal">How was your laundry experience today?</p>
+      {/* ─── Active appliance panel ─── */}
+      <PixelCard bolts className="overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-[240px_1fr]">
+          {/* Machine portrait on gradient stage */}
+          <div className="relative flex items-center justify-center border-b-2 border-teal-900/25 bg-gradient-to-b from-[#f0fdfc] to-[#96DED1] p-6 dark:border-teal-100/20 dark:from-[#0f2d2b] dark:to-[#04100f] md:border-b-0 md:border-r-2">
+            <img
+              src="/images/machine.webp"
+              alt="Your assigned washing machine"
+              className="h-40 w-auto object-contain md:h-44"
+            />
+            <PixelBadge tone="teal" className="absolute left-3 top-3">
+              <span className="h-1.5 w-1.5 animate-pulse bg-teal-600 dark:bg-teal-300" />
+              In use today
+            </PixelBadge>
           </div>
-          <button 
-            type="button" 
-            onClick={() => setIsFeedbackCollapsed(true)} 
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg cursor-pointer transition-colors"
-          >
-            ×
-          </button>
-        </div>
 
-        <div className="bg-slate-50 dark:bg-slate-800/30 border rounded-2xl p-6 flex flex-col items-center justify-center my-4 min-h-[140px] transition-all duration-300">
-          <FeedbackIcon className={`h-14 w-14 transition-transform duration-300 scale-110 ${activeFeedback.color} ${feedbackRating === "smile" ? "animate-bounce" : ""}`} />
-          <p className="text-sm font-extrabold text-slate-800 dark:text-slate-200 mt-3 transition-all duration-300">{activeFeedback.label}</p>
-          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Feedback by John Doe</p>
-        </div>
+          {/* Countdown + stats */}
+          <div className="flex flex-col justify-between gap-6 p-6 sm:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/50 dark:text-teal-100/50">
+                  Active appliance
+                </p>
+                <p className="mt-1 text-sm font-black tracking-wide text-teal-950 dark:text-white">
+                  WEWASH-W01-ATL
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/50 dark:text-teal-100/50">
+                  Room 104 - Group 1
+                </p>
+                <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">
+                  Day 1 of 7
+                </p>
+              </div>
+            </div>
 
-        <div className="flex justify-center items-center gap-3">
-          {(["frown", "meh", "smile", "heart", "star"] as const).map((type) => {
-            const ButtonIcon = feedbackConfig[type].Icon;
-            const isActive = feedbackRating === type;
-            const activeColors: Record<typeof type, string> = {
-              frown: "bg-red-500 text-white shadow-red-500/20",
-              meh: "bg-amber-500 text-white shadow-amber-500/20",
-              smile: "bg-blue-600 text-white shadow-blue-500/20",
-              heart: "bg-rose-500 text-white shadow-rose-500/20",
-              star: "bg-yellow-500 text-slate-900 shadow-yellow-500/20"
-            };
+            <div>
+              <div className="flex items-end gap-3">
+                <BlockyText
+                  text="14H"
+                  font={FONT3}
+                  className="fill-teal-600 dark:fill-teal-400"
+                  style={{ height: "clamp(44px, 7vw, 64px)" }}
+                />
+                <span className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-teal-900/50 dark:text-teal-100/50">
+                  until 8PM handoff
+                </span>
+              </div>
+              <SegmentBar
+                value={HOURS_USED}
+                max={WINDOW_HOURS}
+                segments={24}
+                className="mt-4"
+              />
+              <p className="mt-2 text-[9px] font-black uppercase tracking-[0.18em] text-teal-900/40 dark:text-teal-100/40">
+                {HOURS_USED} of {WINDOW_HOURS} hours used
+              </p>
+            </div>
+
+            {/* Week strip */}
+            <div>
+              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/50 dark:text-teal-100/50">
+                Rotation this week
+              </p>
+              <div className="grid grid-cols-7 gap-1.5">
+                {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day, i) => {
+                  const isToday = i === 3;
+                  return (
+                    <div
+                      key={day}
+                      className={`flex flex-col items-center gap-1 border-2 px-1 py-1.5 text-center ${
+                        isToday
+                          ? "border-teal-950/70 bg-teal-600 text-white shadow-pixel-sm dark:border-teal-100/50 dark:bg-teal-500 dark:text-teal-950"
+                          : "border-teal-900/15 bg-teal-900/5 text-teal-900/50 dark:border-teal-100/15 dark:bg-teal-100/5 dark:text-teal-100/50"
+                      }`}
+                    >
+                      <span className="text-[8px] font-black tracking-widest">{day}</span>
+                      <span className="text-[9px] font-black">{101 + i}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </PixelCard>
+
+      {/* ─── Feedback ─── */}
+      <div ref={cardRef} className="mx-auto w-full max-w-lg">
+        <PixelCard bolts className="flex min-h-[320px] flex-col justify-between gap-5 p-6 sm:p-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <SectionTitle text="HOSTEL FEEDBACK" />
+              <p className="mt-2 text-[11px] font-bold text-teal-900/50 dark:text-teal-100/50">
+                How was your laundry experience today?
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFeedbackCollapsed(true)}
+              aria-label="Collapse feedback"
+              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center border-2 border-teal-900/20 text-teal-900/50 transition-colors hover:border-teal-900/50 hover:text-teal-950 dark:border-teal-100/20 dark:text-teal-100/50 dark:hover:text-white"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="flex min-h-[130px] flex-col items-center justify-center gap-3 border-2 border-teal-900/15 bg-teal-600/5 p-6 dark:border-teal-100/15 dark:bg-teal-400/5">
+            <FeedbackIcon
+              className={`h-12 w-12 text-teal-600 transition-transform duration-300 dark:text-teal-400 ${
+                feedbackRating === "smile" ? "animate-bounce" : "scale-110"
+              }`}
+            />
+            <BlockyText
+              text={activeFeedback.label}
+              font={FONT3}
+              className="fill-teal-950 dark:fill-teal-50"
+              style={{ height: "10px" }}
+            />
+            <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">
+              Feedback by John Doe
+            </p>
+          </div>
+
+          <div className="flex items-center justify-center gap-2.5">
+            {(["frown", "meh", "smile", "heart", "star"] as const).map((type) => {
+              const ButtonIcon = feedbackConfig[type].Icon;
+              const isActive = feedbackRating === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  aria-label={feedbackConfig[type].label}
+                  onClick={() => setFeedbackRating(type)}
+                  className={`flex h-10 w-10 cursor-pointer items-center justify-center border-2 transition-all duration-150 ${
+                    isActive
+                      ? `${feedbackConfig[type].active} -translate-y-0.5 shadow-pixel-sm`
+                      : "border-teal-900/20 bg-white text-teal-900/50 hover:border-teal-900/50 hover:text-teal-900 dark:border-teal-100/20 dark:bg-teal-950/40 dark:text-teal-100/50 dark:hover:text-teal-100"
+                  }`}
+                >
+                  <ButtonIcon className="h-4.5 w-4.5" />
+                </button>
+              );
+            })}
+          </div>
+        </PixelCard>
+      </div>
+
+      {/* ─── Activity log ─── */}
+      <div className="space-y-4">
+        <SectionTitle text="ACTIVITY LOG" />
+        <PixelCard className="divide-y-2 divide-teal-900/10 dark:divide-teal-100/10">
+          {recentActivities.map((activity, i) => {
+            const Icon = activity.icon ?? TicketCheck;
             return (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setFeedbackRating(type)}
-                className={`h-10 w-10 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ${
-                  isActive 
-                    ? `${activeColors[type]} shadow-md scale-110` 
-                    : "bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
-                }`}
-              >
-                <ButtonIcon className="h-5 w-5" />
-              </button>
+              <div key={i} className="flex items-center gap-4 px-4 py-3.5 sm:px-5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-teal-900/20 bg-teal-600/10 text-teal-700 dark:border-teal-100/20 dark:bg-teal-400/10 dark:text-teal-300">
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-black text-teal-950 dark:text-white">
+                    {activity.title}
+                  </p>
+                  <p className="truncate text-[10px] font-bold text-teal-900/50 dark:text-teal-100/50">
+                    {activity.detail}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">
+                  {activity.date}
+                </span>
+              </div>
             );
           })}
-        </div>
-      </Card>
+        </PixelCard>
+      </div>
 
-      {/* Floating Collapsed Tab */}
+      {/* ─── Floating collapsed feedback tab ─── */}
       <button
         ref={tabRef}
         type="button"
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-[#2563eb] text-white p-3 pl-4 pr-3 rounded-l-full rounded-r-none shadow-lg cursor-pointer flex items-center gap-2 hover:bg-[#1d4ed8] transition-colors"
+        className="fixed right-0 top-1/2 z-50 -translate-y-1/2 cursor-pointer items-center gap-2 border-2 border-r-0 border-teal-950/70 bg-teal-600 py-3 pl-3 pr-2.5 text-white shadow-pixel transition-colors hover:bg-teal-500 dark:border-teal-100/50 dark:bg-teal-500 dark:text-teal-950"
         style={{ display: "none", opacity: 0 }}
       >
         <MessageSquare className="h-4 w-4" />
-        <span className="text-xs font-bold">Feedback</span>
+        <span className="text-[10px] font-black uppercase tracking-widest">Feedback</span>
       </button>
+
+      {/* ─── Report fault dialog ─── */}
+      <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+        <DialogContent className="border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-wider">
+              Report machine fault
+            </DialogTitle>
+            <DialogDescription>
+              Help us keep WeWash running. Submit details of the fault.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleReportFault} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <PixelLabel htmlFor="machine">Machine</PixelLabel>
+              <PixelSelect
+                id="machine"
+                value={faultMachine}
+                onChange={(e) => setFaultMachine(e.target.value)}
+              >
+                <option value="WEWASH-W01-ATL">WEWASH-W01-ATL (Floor 1 Group)</option>
+                <option value="WEWASH-W02-ATL">WEWASH-W02-ATL (Floor 2 Group)</option>
+              </PixelSelect>
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="issue">Issue summary</PixelLabel>
+              <PixelInput
+                id="issue"
+                placeholder="e.g. Spin cycle is extremely noisy, or water won't drain"
+                value={faultTitle}
+                onChange={(e) => setFaultTitle(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="details">Detailed description</PixelLabel>
+              <PixelTextarea
+                id="details"
+                placeholder="Please explain what happened and any error codes shown on the display..."
+                value={faultDesc}
+                onChange={(e) => setFaultDesc(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="severity">Severity</PixelLabel>
+              <PixelSelect
+                id="severity"
+                value={faultSeverity}
+                onChange={(e) => setFaultSeverity(e.target.value)}
+              >
+                <option value="LOW">Low (Cosmetic/minor delay)</option>
+                <option value="MEDIUM">Medium (Vibrating/noise but washes)</option>
+                <option value="HIGH">High (Blocked drain/incomplete spin)</option>
+                <option value="CRITICAL">Critical (Total breakdown/no power)</option>
+              </PixelSelect>
+            </div>
+            <DialogFooter className="gap-2 pt-4">
+              <PixelButton type="button" variant="outline" onClick={() => setIsReportOpen(false)}>
+                Cancel
+              </PixelButton>
+              <PixelButton type="submit" variant="danger">
+                Submit ticket
+              </PixelButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

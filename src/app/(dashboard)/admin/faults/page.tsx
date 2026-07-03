@@ -1,22 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Wrench, CheckCircle2, ShieldAlert, Clock, AlertTriangle, PenTool, CheckSquare } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { CheckSquare } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel,
+  PixelTd, PixelTextarea, PixelTh, SectionTitle,
+} from "@/components/pixel/pixel-ui";
+
+type FaultSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+type FaultStatus = "REPORTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "RESOLVED";
 
 type Fault = {
   id: string;
   machineSerial: string;
   title: string;
   description: string;
-  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-  status: "REPORTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "RESOLVED";
+  severity: FaultSeverity;
+  status: FaultStatus;
   reportedBy: string;
   date: string;
   cost?: number;
@@ -46,6 +50,27 @@ const initialFaults: Fault[] = [
   },
 ];
 
+const severityTone: Record<FaultSeverity, "teal" | "amber" | "red"> = {
+  LOW: "teal",
+  MEDIUM: "amber",
+  HIGH: "red",
+  CRITICAL: "red",
+};
+
+const statusTone: Record<FaultStatus, "slate" | "amber" | "green"> = {
+  REPORTED: "slate",
+  ACKNOWLEDGED: "slate",
+  IN_PROGRESS: "amber",
+  RESOLVED: "green",
+};
+
+const statusLabel: Record<FaultStatus, string> = {
+  REPORTED: "Reported",
+  ACKNOWLEDGED: "Acknowledged",
+  IN_PROGRESS: "In Progress",
+  RESOLVED: "Resolved",
+};
+
 export default function AdminFaults() {
   const [faults, setFaults] = useState<Fault[]>(initialFaults);
   const [selectedFault, setSelectedFault] = useState<Fault | null>(null);
@@ -59,216 +84,209 @@ export default function AdminFaults() {
     setFaults(
       faults.map((f) =>
         f.id === selectedFault.id
-          ? {
-              ...f,
-              status: "RESOLVED",
-              cost: parseFloat(repairCost) || 0,
-            }
+          ? { ...f, status: "RESOLVED", cost: parseFloat(repairCost) || 0 }
           : f
       )
     );
 
+    toast.success(`Fault on ${selectedFault.machineSerial} marked resolved.`);
     setSelectedFault(null);
     setResolutionText("");
     setRepairCost("");
   };
 
   const handleAcknowledge = (id: string) => {
-    setFaults(
-      faults.map((f) => (f.id === id ? { ...f, status: "IN_PROGRESS" } : f))
-    );
-  };
-
-  const getSeverityBadge = (sev: string) => {
-    switch (sev) {
-      case "CRITICAL":
-        return <Badge className="bg-red-700 text-white border-red-800">Critical</Badge>;
-      case "HIGH":
-        return <Badge className="bg-red-500 text-white">High</Badge>;
-      case "MEDIUM":
-        return <Badge className="bg-yellow-500 text-white">Medium</Badge>;
-      case "LOW":
-        return <Badge className="bg-blue-500 text-white">Low</Badge>;
-      default:
-        return <Badge variant="outline">{sev}</Badge>;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "REPORTED":
-        return <Badge variant="secondary" className="flex items-center gap-1 w-fit"><Clock className="h-3 w-3" /> Reported</Badge>;
-      case "ACKNOWLEDGED":
-        return <Badge className="bg-slate-200 text-slate-800 flex items-center gap-1 w-fit"><AlertTriangle className="h-3 w-3 text-slate-600" /> Acknowledged</Badge>;
-      case "IN_PROGRESS":
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 flex items-center gap-1 w-fit"><Clock className="h-3 w-3 text-yellow-600" /> In Progress</Badge>;
-      case "RESOLVED":
-        return <Badge className="bg-green-100 text-green-800 border-green-200 flex items-center gap-1 w-fit"><CheckCircle2 className="h-3 w-3 text-green-600" /> Resolved</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    setFaults(faults.map((f) => (f.id === id ? { ...f, status: "IN_PROGRESS" } : f)));
+    toast.info("Ticket moved to In Progress.");
   };
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6 bg-gray-50/30 dark:bg-gray-900/10">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Fault Reports</h2>
-            <p className="text-sm text-muted-foreground">Track machine breakdown tickets, resolve faults, and inspect weekly logs.</p>
-          </div>
-        </div>
+    <div className="space-y-8">
+      <PageTitle text="FAULTS" sub="Breakdown tickets & weekly inspections" />
 
-        {/* Active Fault Tickets */}
-        <Card className="shadow-sm border-blue-100/50">
-          <CardHeader>
-            <CardTitle>Active Tickets</CardTitle>
-            <CardDescription>Review and update repair progress for machines.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Machine</TableHead>
-                  <TableHead>Issue</TableHead>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Reported By</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Deducted Cost</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {faults.map((fault) => (
-                  <TableRow key={fault.id}>
-                    <TableCell className="font-semibold">{fault.machineSerial}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-slate-100">{fault.title}</div>
-                        <div className="text-xs text-muted-foreground max-w-sm truncate">{fault.description}</div>
+      {/* Active tickets */}
+      <div className="space-y-4">
+        <SectionTitle text="ACTIVE TICKETS" />
+        <PixelCard className="overflow-x-auto">
+          <table className="w-full min-w-[920px] text-left">
+            <thead>
+              <tr className="border-b-2 border-teal-900/15 dark:border-teal-100/15">
+                <PixelTh className="pt-4">Machine</PixelTh>
+                <PixelTh className="pt-4">Issue</PixelTh>
+                <PixelTh className="pt-4">Severity</PixelTh>
+                <PixelTh className="pt-4">Reported by</PixelTh>
+                <PixelTh className="pt-4">Date</PixelTh>
+                <PixelTh className="pt-4">Status</PixelTh>
+                <PixelTh className="pt-4 text-right">Cost</PixelTh>
+                <PixelTh className="pt-4 text-right">Action</PixelTh>
+              </tr>
+            </thead>
+            <tbody className="divide-y-2 divide-teal-900/5 dark:divide-teal-100/5">
+              {faults.map((fault) => (
+                <tr
+                  key={fault.id}
+                  className="transition-colors hover:bg-teal-600/5 dark:hover:bg-teal-400/5"
+                >
+                  <PixelTd className="font-black">{fault.machineSerial}</PixelTd>
+                  <PixelTd>
+                    <p className="font-black">{fault.title}</p>
+                    <p className="max-w-xs truncate text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
+                      {fault.description}
+                    </p>
+                  </PixelTd>
+                  <PixelTd>
+                    <PixelBadge tone={severityTone[fault.severity]}>{fault.severity}</PixelBadge>
+                  </PixelTd>
+                  <PixelTd className="text-[10px] text-teal-900/60 dark:text-teal-100/60">
+                    {fault.reportedBy}
+                  </PixelTd>
+                  <PixelTd className="text-[10px] text-teal-900/50 dark:text-teal-100/50">
+                    {fault.date}
+                  </PixelTd>
+                  <PixelTd>
+                    <PixelBadge tone={statusTone[fault.status]}>
+                      {statusLabel[fault.status]}
+                    </PixelBadge>
+                  </PixelTd>
+                  <PixelTd className="text-right font-black">
+                    {fault.cost ? `GHS ${fault.cost.toFixed(2)}` : "—"}
+                  </PixelTd>
+                  <PixelTd className="text-right">
+                    {fault.status !== "RESOLVED" && (
+                      <div className="flex justify-end gap-2">
+                        <PixelButton
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAcknowledge(fault.id)}
+                          disabled={fault.status === "IN_PROGRESS"}
+                        >
+                          Work on
+                        </PixelButton>
+                        <PixelButton size="sm" onClick={() => setSelectedFault(fault)}>
+                          Resolve
+                        </PixelButton>
                       </div>
-                    </TableCell>
-                    <TableCell>{getSeverityBadge(fault.severity)}</TableCell>
-                    <TableCell className="text-xs">{fault.reportedBy}</TableCell>
-                    <TableCell className="text-xs">{fault.date}</TableCell>
-                    <TableCell>{getStatusBadge(fault.status)}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {fault.cost ? `GHS ${fault.cost.toFixed(2)}` : "—"}
-                    </TableCell>
-                    <TableCell className="text-right space-x-1">
-                      {fault.status !== "RESOLVED" && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAcknowledge(fault.id)}
-                            disabled={fault.status === "IN_PROGRESS"}
-                            className="text-xs h-8"
-                          >
-                            Work On
-                          </Button>
-                          <Dialog>
-                            <DialogTrigger
-                              className="inline-flex items-center justify-center rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 h-8 px-3 cursor-pointer"
-                              onClick={() => setSelectedFault(fault)}
-                            >
-                              Resolve
-                            </DialogTrigger>
-                            {selectedFault?.id === fault.id && (
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Resolve Fault Ticket</DialogTitle>
-                                  <DialogDescription>
-                                    Mark the machine fault resolved and record repair costs.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <form onSubmit={handleResolveFault} className="space-y-4 py-2">
-                                  <div className="space-y-2">
-                                    <Label htmlFor="resolution">Resolution Details</Label>
-                                    <textarea
-                                      id="resolution"
-                                      placeholder="Describe what was fixed (e.g., cleared debris, replaced seal, adjusted bases)..."
-                                      value={resolutionText}
-                                      onChange={(e) => setResolutionText(e.target.value)}
-                                      className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-                                      required
-                                    ></textarea>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="cost">Actual Repair Cost (GHS)</Label>
-                                    <Input
-                                      id="cost"
-                                      type="number"
-                                      placeholder="150"
-                                      value={repairCost}
-                                      onChange={(e) => setRepairCost(e.target.value)}
-                                      required
-                                    />
-                                  </div>
-                                  <DialogFooter>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => setSelectedFault(null)}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-                                      Save Resolution
-                                    </Button>
-                                  </DialogFooter>
-                                </form>
-                              </DialogContent>
-                            )}
-                          </Dialog>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Weekly Inspection Checklist */}
-        <Card className="shadow-sm border-blue-100/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5 text-lg">
-              <CheckSquare className="h-5 w-5 text-blue-500" />
-              Weekly Maintenance & Safety Inspections
-            </CardTitle>
-            <CardDescription>Checklist performed by WeWash administrators every weekend.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-semibold">WEWASH-W01-ATL</h4>
-                  <Badge variant="outline" className="text-green-600 border-green-200">Checked Oct 24</Badge>
-                </div>
-                <ul className="space-y-2 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">✔️ Hoses and tap seals tight, no leakage</li>
-                  <li className="flex items-center gap-2">✔️ Movable stand lockable wheels functional</li>
-                  <li className="flex items-center gap-2">✔️ Door seals cleaned and checked for mold</li>
-                  <li className="flex items-center gap-2">✔️ Running test programs successfully completed</li>
-                </ul>
-              </div>
-              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-semibold">WEWASH-W02-ATL</h4>
-                  <Badge variant="outline" className="text-yellow-600 border-yellow-200">Pending Oct 31</Badge>
-                </div>
-                <ul className="space-y-2 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">✔️ Hoses and tap seals tight, no leakage</li>
-                  <li className="flex items-center gap-2">⚠️ Check stand stability legs (Vibration report active)</li>
-                  <li className="flex items-center gap-2">✔️ Door seals cleaned and checked for mold</li>
-                  <li className="flex items-center gap-2">❓ Running test programs</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                    )}
+                  </PixelTd>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </PixelCard>
       </div>
+
+      {/* Weekly inspections */}
+      <div className="space-y-4">
+        <SectionTitle text="WEEKLY INSPECTIONS" />
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <InspectionCard
+            machine="WEWASH-W01-ATL"
+            badge={<PixelBadge tone="green">Checked Oct 24</PixelBadge>}
+            items={[
+              { ok: "ok", text: "Hoses and tap seals tight, no leakage" },
+              { ok: "ok", text: "Movable stand lockable wheels functional" },
+              { ok: "ok", text: "Door seals cleaned and checked for mold" },
+              { ok: "ok", text: "Running test programs successfully completed" },
+            ]}
+          />
+          <InspectionCard
+            machine="WEWASH-W02-ATL"
+            badge={<PixelBadge tone="amber">Pending Oct 31</PixelBadge>}
+            items={[
+              { ok: "ok", text: "Hoses and tap seals tight, no leakage" },
+              { ok: "warn", text: "Check stand stability legs (Vibration report active)" },
+              { ok: "ok", text: "Door seals cleaned and checked for mold" },
+              { ok: "todo", text: "Running test programs" },
+            ]}
+          />
+        </div>
+      </div>
+
+      {/* Resolve dialog */}
+      <Dialog
+        open={selectedFault !== null}
+        onOpenChange={(open) => !open && setSelectedFault(null)}
+      >
+        <DialogContent className="border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-wider">
+              Resolve fault ticket
+            </DialogTitle>
+            <DialogDescription>
+              Mark the machine fault resolved and record repair costs.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResolveFault} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <PixelLabel htmlFor="resolution">Resolution details</PixelLabel>
+              <PixelTextarea
+                id="resolution"
+                placeholder="Describe what was fixed (e.g., cleared debris, replaced seal, adjusted bases)..."
+                value={resolutionText}
+                onChange={(e) => setResolutionText(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="cost">Actual repair cost (GHS)</PixelLabel>
+              <PixelInput
+                id="cost"
+                type="number"
+                placeholder="150"
+                value={repairCost}
+                onChange={(e) => setRepairCost(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter className="gap-2">
+              <PixelButton type="button" variant="outline" onClick={() => setSelectedFault(null)}>
+                Cancel
+              </PixelButton>
+              <PixelButton type="submit">Save resolution</PixelButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function InspectionCard({
+  machine,
+  badge,
+  items,
+}: {
+  machine: string;
+  badge: React.ReactNode;
+  items: { ok: "ok" | "warn" | "todo"; text: string }[];
+}) {
+  return (
+    <PixelCard bolts className="space-y-4 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-sm font-black tracking-wide text-teal-950 dark:text-white">
+          <CheckSquare className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+          {machine}
+        </p>
+        {badge}
+      </div>
+      <ul className="space-y-2.5">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-start gap-2.5 text-[11px] font-bold text-teal-900/70 dark:text-teal-100/70">
+            <span
+              className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[8px] font-black ${
+                item.ok === "ok"
+                  ? "bg-teal-600 text-white dark:bg-teal-400 dark:text-teal-950"
+                  : item.ok === "warn"
+                    ? "bg-amber-500 text-amber-950"
+                    : "border border-teal-900/30 text-teal-900/40 dark:border-teal-100/30 dark:text-teal-100/40"
+              }`}
+            >
+              {item.ok === "ok" ? "✓" : item.ok === "warn" ? "!" : "?"}
+            </span>
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </PixelCard>
   );
 }

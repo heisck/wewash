@@ -1,11 +1,12 @@
 "use client";
 
 import {
-  ShieldCheck, AlertTriangle, ArrowRight,
-  CheckCircle, Clock, Info, Wrench, Droplet
+  ShieldCheck, AlertTriangle, CheckCircle, Clock, Info, Wrench, Droplet,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import Carousel from "@/components/ui/carousel";
+import { BlockyText, FONT3 } from "@/components/pixel/blocky-text";
+import {
+  PageTitle, PixelCard, SectionTitle, StatTile,
+} from "@/components/pixel/pixel-ui";
 
 const careRules = [
   { text: "Never disconnect tap hoses while machine is running", icon: AlertTriangle },
@@ -25,115 +26,82 @@ const transferSteps = [
 ];
 
 export default function GuidelinesPage() {
-  const carouselItems = transferSteps.map((s) => ({
-    id: s.step,
-    title: s.title,
-    description: s.desc,
-    icon: (
-      <span className="text-xs font-black text-slate-800 dark:text-slate-100 leading-none">
-        {s.step}
-      </span>
-    )
-  }));
-
   return (
-    <div className="space-y-0 pb-12">
-      {/* Header */}
-      <div>
-        <h1 className="text-lg font-black text-slate-900 dark:text-white">Appliance Guide</h1>
-      </div>
+    <div className="space-y-10 pb-12">
+      <PageTitle text="GUIDE" sub="Appliance care & transfer manual" />
 
-      {/* Line Space Divider 1 */}
-      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
-
-      {/* Care Rules */}
-      <div>
-        <div className="flex items-center gap-2 mb-5">
-          <ShieldCheck className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-black text-slate-900 dark:text-white">Safety & Care Rules</h2>
-        </div>
-
+      {/* ─── Safety & care rules ─── */}
+      <div className="space-y-4">
+        <SectionTitle text="SAFETY & CARE RULES" />
         <div className="space-y-3">
           {careRules.map((rule, i) => {
             const Icon = rule.icon;
             return (
-              <div key={i} className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-100 dark:border-slate-800">
-                <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-white dark:bg-slate-900 shadow-xs border border-slate-200/50 dark:border-slate-700">
-                  <Icon className="h-4 w-4 text-slate-500" />
-                </div>
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-relaxed pt-1.5">{rule.text}</p>
-              </div>
+              <PixelCard key={i} className="flex items-center gap-4 p-4 shadow-pixel-sm">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center border-2 border-teal-900/20 bg-teal-600/10 text-teal-700 dark:border-teal-100/20 dark:bg-teal-400/10 dark:text-teal-300">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <p className="text-xs font-bold leading-relaxed text-teal-950 dark:text-teal-50">
+                  {rule.text}
+                </p>
+                <span className="ml-auto hidden shrink-0 text-[9px] font-black uppercase tracking-widest text-teal-900/30 dark:text-teal-100/30 sm:block">
+                  Rule {String(i + 1).padStart(2, "0")}
+                </span>
+              </PixelCard>
             );
           })}
         </div>
       </div>
 
-      {/* Line Space Divider 2 */}
-      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
-
-      {/* Transfer Steps */}
-      <div>
-        <div className="flex items-center gap-2 mb-5">
-          <ArrowRight className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-black text-slate-900 dark:text-white">Room Transfer Procedure</h2>
-        </div>
-
-        <div className="flex justify-center w-full py-4">
-          <Carousel
-            items={carouselItems}
-            baseWidth={320}
-            autoplay={true}
-            autoplayDelay={3500}
-            pauseOnHover={true}
-            loop={true}
-            round={true}
-          />
+      {/* ─── Room transfer procedure ─── */}
+      <div className="space-y-4">
+        <SectionTitle text="ROOM TRANSFER PROCEDURE" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {transferSteps.map((s) => (
+            <PixelCard
+              key={s.step}
+              bolts
+              className="group flex flex-col gap-3 p-5 transition-transform duration-150 hover:-translate-y-1"
+            >
+              <div className="flex items-center justify-between">
+                <BlockyText
+                  text={String(s.step)}
+                  font={FONT3}
+                  className="fill-teal-600 transition-transform duration-150 group-hover:scale-110 dark:fill-teal-400"
+                  style={{ height: "28px" }}
+                />
+                {/* Step progress pips */}
+                <div className="flex gap-1" aria-hidden="true">
+                  {transferSteps.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 w-1.5 ${
+                        i < s.step
+                          ? "bg-teal-600 dark:bg-teal-400"
+                          : "bg-teal-900/15 dark:bg-teal-100/15"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs font-black uppercase tracking-wider text-teal-950 dark:text-white">
+                {s.title}
+              </p>
+              <p className="text-[11px] font-semibold leading-relaxed text-teal-900/60 dark:text-teal-100/60">
+                {s.desc}
+              </p>
+            </PixelCard>
+          ))}
         </div>
       </div>
 
-      {/* Line Space Divider 3 */}
-      <div className="border-t border-slate-200 dark:border-slate-800 my-8" />
-
-      {/* Summary Metrics Bar - Edge to Edge */}
-      <div className="-mx-6 md:-mx-8 border-y border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
-          
-          {/* Max Load */}
-          <div className="pl-6 md:pl-8 pr-4 sm:pr-5 py-4 sm:py-5 flex flex-col justify-between min-h-[90px] sm:min-h-[105px]">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Max Load</span>
-              <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 hidden sm:block" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-none">7 kg</h3>
-              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold mt-1 truncate">Per wash cycle</p>
-            </div>
-          </div>
-
-          {/* Cycle Time */}
-          <div className="px-4 sm:px-5 py-4 sm:py-5 flex flex-col justify-between min-h-[90px] sm:min-h-[105px]">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Cycle Time</span>
-              <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0 hidden sm:block" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-none">45 min</h3>
-              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold mt-1 truncate">Standard wash</p>
-            </div>
-          </div>
-
-          {/* Rooms Served */}
-          <div className="pl-4 sm:pl-5 pr-6 md:pr-8 py-4 sm:py-5 flex flex-col justify-between min-h-[90px] sm:min-h-[105px]">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Rooms Served</span>
-              <CheckCircle className="h-3.5 w-3.5 text-slate-400 shrink-0 hidden sm:block" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-none">7</h3>
-              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold mt-1 truncate">Per rotation group</p>
-            </div>
-          </div>
-
+      {/* ─── Machine facts ─── */}
+      <div className="space-y-4">
+        <SectionTitle text="MACHINE FACTS" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="Max load" value="7 kg" sub="Per wash cycle" icon={<Info />} />
+          <StatTile label="Cycle time" value="45 min" sub="Standard wash" icon={<Clock />} />
+          <StatTile label="Rooms served" value="7" sub="Per rotation group" icon={<CheckCircle />} />
         </div>
       </div>
     </div>
