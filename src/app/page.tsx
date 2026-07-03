@@ -28,11 +28,11 @@ const FONT3: PixFont = {
     K: ["101", "110", "100", "110", "101"],
     L: ["100", "100", "100", "100", "111"],
     M: ["101", "111", "111", "101", "101"],
-    N: ["110", "111", "101", "101", "101"],
+    N: ["111", "101", "101", "101", "101"],
     O: ["111", "101", "101", "101", "111"],
     P: ["111", "101", "111", "100", "100"],
     Q: ["111", "101", "101", "111", "011"],
-    R: ["111", "101", "111", "110", "101"],
+    R: ["111", "101", "111", "101", "101"],
     S: ["111", "100", "111", "001", "111"],
     T: ["111", "010", "010", "010", "010"],
     U: ["101", "101", "101", "101", "111"],
@@ -162,6 +162,7 @@ type Slide = {
   alt: string;
   word: string[]; // e.g. ["P", "@", "Y"]  ("@" = machine)
   sub: Seg[][]; // lines -> segments
+  machineGap?: string;
 };
 
 const SLIDES: Slide[] = [
@@ -176,6 +177,7 @@ const SLIDES: Slide[] = [
     alt: "Open washing machine",
     word: ["W", "@", "H", "O"],
     sub: [[{ t: "STILL WASHES?" }], [{ t: "JUST TOSS YOUR CLOTHES IN" }]],
+    machineGap: "calc(var(--word-gap) * 1.25)",
   },
   {
     src: "/images/machine-clothes.webp",
@@ -203,7 +205,7 @@ function Wordmark({
   return (
     <div
       className={`flex ${vertical ? "flex-col" : "flex-row"} items-center justify-center`}
-      style={{ gap }}
+      style={{ gap, "--word-gap": gap } as CSSProperties}
     >
       {slide.word.map((tok, i) =>
         tok === "@" ? (
@@ -212,7 +214,12 @@ function Wordmark({
             src={slide.src}
             alt={slide.alt}
             className="w-auto object-contain relative z-20"
-            style={{ height: machine }}
+            style={
+              {
+                height: machine,
+                [vertical ? "marginBlock" : "marginInline"]: slide.machineGap,
+              } as CSSProperties
+            }
           />
         ) : vertical ? (
           <div
@@ -274,7 +281,7 @@ export default function Home() {
   const U = "min(100vw, 1600px, 160vh)";
   const u = (k: number) => `calc(${U} * ${k})`;
   // Portrait unit: drives the rotated vertical wordmark.
-  const M = "min(58vw, 13vh)";
+  const M = "min(72vw, 16vh)";
   const m = (k: number) => `calc(${M} * ${k})`;
 
   const [active, setActive] = useState(0);
@@ -390,7 +397,7 @@ export default function Home() {
                 i === active ? "opacity-100" : "opacity-0 pointer-events-none"
               }`}
             >
-              <Wordmark slide={slide} vertical letter={M} machine={M} gap={m(0.12)} />
+              <Wordmark slide={slide} vertical letter={M} machine={M} gap={m(0.1)} />
               <div style={{ marginTop: "5vh" }}>
                 <Subs slide={slide} slim="3.4vw" chunk="4.6vw" gap="1.4vw" lineGap="1.2vh" />
               </div>
