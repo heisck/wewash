@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { BlockyText, FONT3, FONT5 } from "@/components/pixel/blocky-text";
 
 
@@ -220,12 +221,12 @@ export default function Home() {
           >
             Contact
           </a>
-          <a
-            href="#get-started"
+          <Link
+            href="/signup"
             className="bg-teal-600 hover:bg-teal-700 text-white text-sm sm:text-base font-semibold px-3.5 py-2 sm:px-5 sm:py-2.5 transition-colors"
           >
             Get Started
-          </a>
+          </Link>
         </nav>
       </header>
 

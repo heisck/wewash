@@ -220,12 +220,14 @@ export function SegmentBar({
   segments = 20,
   className,
   tone = "teal",
+  label = "Progress",
 }: {
   value: number;
   max: number;
   segments?: number;
   className?: string;
   tone?: "teal" | "amber" | "red";
+  label?: string;
 }) {
   const filled = Math.round((Math.min(value, max) / max) * segments);
   const fillClass =
@@ -237,6 +239,7 @@ export function SegmentBar({
   return (
     <div
       role="progressbar"
+      aria-label={label}
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={max}
