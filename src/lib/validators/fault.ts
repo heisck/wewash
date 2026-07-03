@@ -5,7 +5,8 @@ import { idSchema, dateSchema, currencyAmountSchema } from "./shared";
 
 export const createFaultReportSchema = z.object({
   machineId: idSchema,
-  reportedById: idSchema,
+  // Optional: for student reports the server fills this from the session.
+  reportedById: idSchema.optional(),
   title: z.string().min(1, "Title is required").max(200),
   description: z.string().min(10, "Please provide more details").max(2000),
   severity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM"),

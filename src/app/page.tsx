@@ -215,12 +215,12 @@ export default function Home() {
       <header className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 py-3 sm:px-8 sm:py-5">
         <img src="/favicon.ico" alt="WeWash Logo" className="h-9 w-9 sm:h-11 sm:w-11 object-contain" />
         <nav className="flex items-center gap-3 sm:gap-6">
-          <a
-            href="#contact"
+          <Link
+            href="/contact"
             className="text-sm sm:text-base font-semibold text-teal-800 dark:text-teal-100 hover:text-teal-600 dark:hover:text-teal-300 transition-colors"
           >
             Contact
-          </a>
+          </Link>
           <Link
             href="/signup"
             className="bg-teal-600 hover:bg-teal-700 text-white text-sm sm:text-base font-semibold px-3.5 py-2 sm:px-5 sm:py-2.5 transition-colors"

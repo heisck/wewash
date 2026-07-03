@@ -13,7 +13,9 @@ export type Resource =
   | "payments"
   | "faults"
   | "schedules"
-  | "system_config";
+  | "system_config"
+  | "notifications"
+  | "wash_sessions";
 
 /**
  * Define actions that can be performed on resources.
@@ -46,7 +48,9 @@ export const rolePermissions: Permissions = {
     payments: ["create", "read", "update"],
     faults: ["create", "read", "update", "delete"],
     schedules: ["create", "read", "update"],
-    system_config: ["read"], // Cannot update configs
+    system_config: ["read", "update"], // Admins can edit contact/WhatsApp config
+    notifications: ["create", "read"],  // Can broadcast notifications
+    wash_sessions: ["read"],
   },
   STUDENT: {
     "*": [],
@@ -57,6 +61,7 @@ export const rolePermissions: Permissions = {
     payments: ["read"],
     faults: ["create", "read", "update"], // Can create and update own faults
     schedules: ["read"],
+    wash_sessions: ["create", "read"],    // Can scan (create) and read own sessions
   },
 };
 

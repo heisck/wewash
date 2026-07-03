@@ -7,8 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ╔═══════════════════════════════════════════════════════════════╗
@@ -103,6 +104,12 @@ enum DayOfWeek {
   SUNDAY
 }
 
+enum WashSessionStatus {
+  IN_USE
+  RETURNED
+  EXPIRED
+}
+
 // ╔═══════════════════════════════════════════════════════════════╗
 // ║  AUTH MODELS (Better Auth compatible)                          ║
 // ╚═══════════════════════════════════════════════════════════════╝
@@ -120,10 +127,11 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  sessions      Session[]
-  accounts      Account[]
-  student       Student?
-  auditLogs     AuditLog[]
+  sessions          Session[]
+  accounts          Account[]
+  student           Student?
+  auditLogs         AuditLog[]
+  pushSubscriptions PushSubscription[]
 
   @@index([email])
   @@index([phone])
@@ -223,6 +231,7 @@ model Room {
   hall              Hall              @relation(fields: [hallId], references: [id], onDelete: Cascade)
   students          Student[]
   machineSchedules  MachineSchedule[]
+  washSessions      WashSession[]
 
   @@unique([hallId, number])
   @@index([hallId])
@@ -253,6 +262,7 @@ model Student {
   faultReports  FaultReport[]
   contracts     Contract[]
   waitingList   WaitingList[]
+  washSessions  WashSession[]
 
   @@index([studentId])
   @@index([roomId])
@@ -265,6 +275,7 @@ model Student {
 model Machine {
   id              String        @id @default(cuid())
   serialNumber    String        @unique
+  qrToken         String?       @unique // Opaque token embedded in the machine's printed QR code
   brand           String?
   model           String?
   purchaseDate    DateTime?
@@ -284,8 +295,10 @@ model Machine {
   transferLogs      TransferLog[]
   machineSchedules  MachineSchedule[]
   contracts         Contract[]
+  washSessions      WashSession[]
 
   @@index([serialNumber])
+  @@index([qrToken])
   @@index([status])
   @@index([hallId])
   @@index([deletedAt])
@@ -320,6 +333,61 @@ model MachineSchedule {
   @@index([roomId])
   @@index([dayOfWeek])
   @@map("machine_schedules")
+}
+
+// ╔═══════════════════════════════════════════════════════════════╗
+// ║  WASH SESSIONS (QR scan → "machine in your hands")            ║
+// ║  Created when a student scans the machine QR. Records which    ║
+// ║  room the machine is in, how late they were vs the rotation    ║
+// ║  window, and when it's due to move to the next room.           ║
+// ╚═══════════════════════════════════════════════════════════════╝
+
+model WashSession {
+  id              String            @id @default(cuid())
+  machineId       String
+  roomId          String
+  studentId       String?
+  scheduleId      String? // MachineSchedule id for the day (nullable — schedule may change)
+  scannedAt       DateTime          @default(now())
+  expectedStartAt DateTime // When this room's rotation window opened
+  dueBackAt       DateTime // When the machine must move to the next room
+  minutesLate     Int? // Minutes after expectedStartAt that the scan happened
+  endedAt         DateTime?
+  status          WashSessionStatus @default(IN_USE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relations
+  machine Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  room    Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@index([machineId])
+  @@index([roomId])
+  @@index([studentId])
+  @@index([status])
+  @@index([scannedAt])
+  @@map("wash_sessions")
+}
+
+// ╔═══════════════════════════════════════════════════════════════╗
+// ║  WEB PUSH SUBSCRIPTIONS (PWA notifications)                    ║
+// ╚═══════════════════════════════════════════════════════════════╝
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 // ╔═══════════════════════════════════════════════════════════════╗

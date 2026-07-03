@@ -13,6 +13,7 @@ import {
 } from "@/lib/validators";
 import { PaginationInput, toSkipTake } from "@/lib/utils/pagination";
 import { auditLogService } from "./audit-log.service";
+import { notificationService } from "./notification.service";
 
 export class FinanceService {
   private readonly repo: FinanceRepository;
@@ -210,6 +211,16 @@ export class FinanceService {
       entityId: payment.id,
       newValues: payment,
     });
+
+    // Notify the student their payment was confirmed (SMS + push).
+    void notificationService.notify({
+      userIds: student.userId ? [student.userId] : [],
+      phones: [student.phone],
+      title: "Payment confirmed",
+      body: `We received your payment of GHS ${data.amount}. Thank you! - WeWash`,
+      url: "/student/billing",
+    });
+
     return payment;
   }
 

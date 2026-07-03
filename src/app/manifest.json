@@ -1,6 +1,10 @@
 {
-  "name": "Wewash",
+  "name": "WeWash",
   "short_name": "WW",
+  "id": "/",
+  "start_url": "/student",
+  "scope": "/",
+  "description": "Shared washing machine subscriptions for university hostels.",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

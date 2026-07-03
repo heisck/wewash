@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { GoogleGlyph } from "@/components/pixel/auth-frame";
+import { authClient } from "@/lib/auth/client";
 import {
   PixelButton,
   PixelCard,
@@ -13,19 +14,32 @@ import {
 
 export function LoginForm() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [phone, setPhone] = useState("");
+  const searchParams = useSearchParams();
+  const callbackURL = searchParams.get("callbackURL") || "/student";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    try {
+      await authClient.signIn.social({ provider: "google", callbackURL });
+    } catch {
+      setGoogleLoading(false);
+      toast.error("Could not start Google sign-in. Is it configured?");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
-    // Simulate login and redirect to the Student Dashboard
-    setTimeout(() => {
-      setIsLoading(false);
-      toast.success("Welcome back! Machine's all yours.");
-      router.push("/student");
-    }, 1000);
+    const { error } = await authClient.signIn.email({ email, password });
+    setIsLoading(false);
+    if (error) return toast.error(error.message || "Invalid email or password.");
+    toast.success("Welcome back! Machine's all yours.");
+    router.push(callbackURL);
   };
 
   return (
@@ -35,10 +49,11 @@ export function LoginForm() {
         variant="outline"
         size="lg"
         className="w-full"
-        onClick={() => router.push("/student")}
+        onClick={handleGoogle}
+        disabled={googleLoading}
       >
         <GoogleGlyph className="h-4 w-4" />
-        Continue with Google
+        {googleLoading ? "Redirecting..." : "Continue with Google"}
       </PixelButton>
 
       {/* Divider */}
@@ -52,29 +67,40 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-5 text-left">
         <div className="space-y-2">
-          <PixelLabel htmlFor="phone">Phone number</PixelLabel>
-          <div className="flex">
-            <span className="flex h-11 shrink-0 items-center border-2 border-r-0 border-teal-900/30 bg-teal-600/10 px-3 text-xs font-black tracking-widest text-teal-800 dark:border-teal-100/25 dark:bg-teal-400/10 dark:text-teal-200">
-              +233
-            </span>
-            <PixelInput
-              id="phone"
-              type="tel"
-              inputMode="tel"
-              placeholder="24 123 4567"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </div>
-          <p className="text-[10px] font-semibold text-teal-900/40 dark:text-teal-100/40">
-            We'll text a one-time code to this number.
-          </p>
+          <PixelLabel htmlFor="email">Email address</PixelLabel>
+          <PixelInput
+            id="email"
+            type="email"
+            placeholder="john@uni.edu.gh"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <PixelLabel htmlFor="password">Password</PixelLabel>
+          <PixelInput
+            id="password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
         </div>
 
         <PixelButton type="submit" size="lg" className="w-full" disabled={isLoading}>
           {isLoading ? "Signing in..." : "Continue"}
         </PixelButton>
+
+        <p className="text-center text-[10px] font-semibold text-teal-900/40 dark:text-teal-100/40">
+          New here?{" "}
+          <a href="/signup" className="font-black text-teal-700 underline dark:text-teal-300">
+            Create an account
+          </a>
+        </p>
       </form>
     </PixelCard>
   );

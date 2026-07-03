@@ -5,6 +5,7 @@ import { User } from "@/lib/auth/config";
 import { requirePermission } from "@/lib/auth/permissions";
 import { CreateStudentInput, UpdateStudentInput, StudentFilterInput } from "@/lib/validators";
 import { PaginationInput, toSkipTake } from "@/lib/utils/pagination";
+import { notificationService } from "./notification.service";
 
 export class StudentService {
   private readonly repo: StudentRepository;
@@ -48,6 +49,53 @@ export class StudentService {
   }
 
   /**
+   * Get the current user's own student profile (with room + hall).
+   * Returns null if the signed-in user has no student record yet.
+   */
+  async getMyProfile(user: User | null) {
+    if (!user) throw AppError.unauthorized("Not signed in");
+    return this.repo.findByUserIdDetailed(user.id);
+  }
+
+  /**
+   * Self-onboarding: the signed-in user creates their own student profile,
+   * choosing a hostel (hall) the admin has already created. Idempotent-ish:
+   * refuses if a profile or student ID already exists.
+   */
+  async onboardSelf(
+    user: User | null,
+    data: { studentId: string; phone: string; hallId?: string; roomNumber?: string }
+  ): Promise<Student> {
+    if (!user) throw AppError.unauthorized("Not signed in");
+
+    const existingProfile = await this.repo.findByUserId(user.id);
+    if (existingProfile) return existingProfile; // already onboarded
+
+    const existingId = await this.repo.findByStudentId(data.studentId);
+    if (existingId) throw AppError.conflict(`Student ID ${data.studentId} is already registered`);
+
+    const [firstName, ...rest] = (user.name || "Student").trim().split(" ");
+    const lastName = rest.join(" ") || "";
+
+    const student = await this.repo.onboard({
+      userId: user.id,
+      studentId: data.studentId,
+      firstName,
+      lastName,
+      phone: data.phone,
+      email: user.email ?? null,
+      hallId: data.hallId,
+      roomNumber: data.roomNumber,
+    });
+
+    if (student.phone) {
+      void notificationService.sendWelcome(student.phone, student.firstName);
+    }
+
+    return student;
+  }
+
+  /**
    * Get a single student by ID.
    */
   async getStudentById(user: User | null, id: string): Promise<Student> {
@@ -70,7 +118,14 @@ export class StudentService {
       throw AppError.conflict(`Student with ID ${data.studentId} already exists`);
     }
 
-    return this.repo.create(data);
+    const student = await this.repo.create(data);
+
+    // Fire-and-forget welcome SMS with the app link + scan hint.
+    if (student.phone) {
+      void notificationService.sendWelcome(student.phone, student.firstName);
+    }
+
+    return student;
   }
 
   /**

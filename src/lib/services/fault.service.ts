@@ -13,6 +13,7 @@ import {
 } from "@/lib/validators";
 import { PaginationInput, toSkipTake } from "@/lib/utils/pagination";
 import { auditLogService } from "./audit-log.service";
+import { notificationService } from "./notification.service";
 
 export class FaultService {
   private readonly repo: FaultRepository;
@@ -89,6 +90,9 @@ export class FaultService {
     if (studentId) {
       reportedById = studentId;
     }
+    if (!reportedById) {
+      throw AppError.badRequest("reportedById is required when reporting on behalf of a student");
+    }
 
     const student = await this.studentRepo.findById(reportedById);
     if (!student) throw AppError.notFound("Student", reportedById);
@@ -116,6 +120,13 @@ export class FaultService {
       entityId: fault.id,
       newValues: fault,
     });
+
+    // Alert admins so the report reaches the ops center immediately.
+    void notificationService.notifyAdmins(
+      "New fault reported",
+      `${student.firstName} ${student.lastName} reported "${data.title}" on machine ${machine.serialNumber}.`,
+      "/admin/faults"
+    );
 
     return fault;
   }
@@ -157,6 +168,20 @@ export class FaultService {
       oldValues: fault,
       newValues: updated,
     });
+
+    // Let the student who reported it know it's fixed.
+    if (data.status === "RESOLVED") {
+      const reporter = await this.studentRepo.findById(fault.reportedById);
+      if (reporter) {
+        void notificationService.notify({
+          userIds: reporter.userId ? [reporter.userId] : [],
+          phones: [reporter.phone],
+          title: "Fault resolved",
+          body: `Good news — your report "${fault.title}" has been resolved. - WeWash`,
+          url: "/student",
+        });
+      }
+    }
 
     return updated;
   }

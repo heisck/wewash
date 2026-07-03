@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Prisma, Machine, MachineSchedule } from "@prisma/client";
 import { MachineRepository } from "@/lib/repositories/machine.repository";
 import { AppError } from "@/lib/errors";
@@ -80,7 +81,23 @@ export class MachineService {
       throw AppError.conflict(`Machine with serial ${data.serialNumber} exists`);
     }
 
-    return this.repo.create(data);
+    // Each machine gets an opaque QR token embedded in its printed QR code.
+    const qrToken = randomBytes(16).toString("hex");
+    return this.repo.create({ ...data, qrToken });
+  }
+
+  /**
+   * Ensure a machine has a qrToken (backfill for machines created before QR
+   * tokens existed), returning the token.
+   */
+  async ensureQrToken(user: User | null, id: string): Promise<string> {
+    requirePermission(user, "machines", "read");
+    const machine = await this.repo.findById(id);
+    if (!machine) throw AppError.notFound("Machine", id);
+    if (machine.qrToken) return machine.qrToken;
+    const qrToken = randomBytes(16).toString("hex");
+    await this.repo.update(id, { qrToken });
+    return qrToken;
   }
 
   /**

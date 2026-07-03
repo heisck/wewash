@@ -15,6 +15,8 @@ const envSchema = z.object({
 
   // Database
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  // Neon: direct (non-pooled) connection used by Prisma migrations. Falls back to DATABASE_URL.
+  DIRECT_URL: z.string().optional().default(""),
   DATABASE_POOL_SIZE: z.coerce.number().int().min(1).default(10),
 
   // Redis
@@ -44,6 +46,20 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
   CLOUDINARY_API_KEY: z.string().optional().default(""),
   CLOUDINARY_API_SECRET: z.string().optional().default(""),
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
+
+  // Web Push (VAPID) — generate with: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: z.string().optional().default(""),
+  VAPID_PRIVATE_KEY: z.string().optional().default(""),
+  VAPID_SUBJECT: z.string().optional().default("mailto:admin@wewash.app"),
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional().default(""),
+
+  // Cron (Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`)
+  CRON_SECRET: z.string().optional().default(""),
+
+  // Contact / WhatsApp (fallback defaults; live values come from SystemConfig)
+  NEXT_PUBLIC_WHATSAPP_NUMBER: z.string().optional().default(""),
+  NEXT_PUBLIC_CONTACT_EMAIL: z.string().optional().default(""),
 
   // Sentry
   SENTRY_DSN: z.string().optional().default(""),

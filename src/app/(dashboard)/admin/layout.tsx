@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LayoutDashboard, Activity, Users, Wrench } from "lucide-react";
+import { LayoutDashboard, Activity, Users, Wrench, Settings } from "lucide-react";
 import { AuthFrame, GoogleGlyph } from "@/components/pixel/auth-frame";
 import { DashboardShell } from "@/components/pixel/dashboard-shell";
+import { authClient, useSession } from "@/lib/auth/client";
 import {
   PixelButton, PixelCard, PixelInput, PixelLabel,
 } from "@/components/pixel/pixel-ui";
@@ -15,30 +17,50 @@ const menuItems = [
   { name: "Machines", href: "/admin/machines", icon: Activity },
   { name: "Students", href: "/admin/students", icon: Users },
   { name: "Faults", href: "/admin/faults", icon: Wrench },
+  { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Manage admin auth state right on the /admin route
-  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
 
-  if (!isAuthenticated) {
-    const handleLoginSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        toast.success("Welcome back, chief. Operations are live.");
-        setIsAuthenticated(true);
-      }, 800);
-    };
+  const user = session?.user as
+    | { name: string; email: string; role?: string }
+    | undefined;
+  const isAdmin = !!user && ADMIN_ROLES.includes(user.role ?? "");
 
+  const handleGoogle = async () => {
+    try {
+      await authClient.signIn.social({ provider: "google", callbackURL: "/admin" });
+    } catch {
+      toast.error("Could not start Google sign-in. Is it configured?");
+    }
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    const { error } = await authClient.signIn.email({ email, password });
+    setIsLoading(false);
+    if (error) return toast.error(error.message || "Invalid credentials.");
+    toast.success("Welcome back, chief. Operations are live.");
+  };
+
+  // While the session resolves, avoid flashing the login gate.
+  if (isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#eefaf8] dark:bg-[#04100f]">
+        <img src="/favicon.ico" alt="WeWash" className="h-12 w-12 animate-pulse object-contain" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
     return (
       <AuthFrame
         word="@DMIN"
@@ -48,15 +70,9 @@ export default function AdminLayout({
         footer={
           <>
             <p className="max-w-[320px] text-[11px] font-semibold leading-normal text-teal-900/50 dark:text-teal-100/50">
-              By continuing, you agree to the{" "}
-              <a href="#" className="underline hover:text-teal-800 dark:hover:text-teal-200">
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a href="#" className="underline hover:text-teal-800 dark:hover:text-teal-200">
-                Privacy Policy
-              </a>
-              .
+              {user && !isAdmin
+                ? "This account isn't an operator. Sign in with an admin account."
+                : "Authorized operators only."}
             </p>
             <Link
               href="/login"
@@ -73,7 +89,7 @@ export default function AdminLayout({
             variant="outline"
             size="lg"
             className="w-full"
-            onClick={() => setIsAuthenticated(true)}
+            onClick={handleGoogle}
           >
             <GoogleGlyph className="h-4 w-4" />
             Continue with Google
@@ -93,7 +109,7 @@ export default function AdminLayout({
               <PixelInput
                 id="email"
                 type="email"
-                placeholder="admin@wewash.com"
+                placeholder="admin@wewash.app"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -101,15 +117,7 @@ export default function AdminLayout({
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <PixelLabel htmlFor="password">Security password</PixelLabel>
-                <a
-                  href="#"
-                  className="text-[9px] font-black uppercase tracking-widest text-teal-700 hover:underline dark:text-teal-300"
-                >
-                  Forgot?
-                </a>
-              </div>
+              <PixelLabel htmlFor="password">Security password</PixelLabel>
               <PixelInput
                 id="password"
                 type="password"
@@ -123,21 +131,40 @@ export default function AdminLayout({
             <PixelButton type="submit" variant="dark" size="lg" className="w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Enter ops center"}
             </PixelButton>
+            {user && !isAdmin && (
+              <button
+                type="button"
+                onClick={() => authClient.signOut()}
+                className="w-full text-[10px] font-black uppercase tracking-widest text-teal-700 hover:underline dark:text-teal-300"
+              >
+                Sign out {user.email}
+              </button>
+            )}
           </form>
         </PixelCard>
       </AuthFrame>
     );
   }
 
+  const initials = (user!.name || user!.email)
+    .split(" ")
+    .map((s) => s[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <DashboardShell
       portal="Admin"
-      note="UCC ATLANTIC HALL - LIVE OPERATIONS"
+      note="LIVE OPERATIONS"
       navItems={menuItems}
-      userName="Super Admin"
-      userMeta="admin@wewash.com"
-      userInitials="AD"
-      onLogout={() => setIsAuthenticated(false)}
+      userName={user!.name || "Operator"}
+      userMeta={user!.email}
+      userInitials={initials}
+      onLogout={async () => {
+        await authClient.signOut();
+        router.push("/admin/login");
+      }}
     >
       {children}
     </DashboardShell>
