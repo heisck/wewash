@@ -115,16 +115,20 @@ enum WashSessionStatus {
 // ╚═══════════════════════════════════════════════════════════════╝
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?
-  phone         String?   @unique
-  role          UserRole  @default(STUDENT)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  name                String
+  email               String    @unique
+  emailVerified       Boolean   @default(false)
+  image               String?
+  // Better Auth phoneNumber plugin fields
+  phoneNumber         String?   @unique
+  phoneNumberVerified Boolean   @default(false)
+  // Domain convenience (kept for existing services; prefer phoneNumber for auth)
+  phone               String?   @unique
+  role                UserRole  @default(STUDENT)
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Relations
   sessions          Session[]
@@ -135,6 +139,7 @@ model User {
 
   @@index([email])
   @@index([phone])
+  @@index([phoneNumber])
   @@index([role])
   @@map("users")
 }

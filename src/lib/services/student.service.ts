@@ -126,6 +126,8 @@ export class StudentService {
             email: data.email,
             emailVerified: true,
             phone: data.phone,
+            phoneNumber: data.phone,
+            phoneNumberVerified: false,
             role: "STUDENT",
             isActive: true,
           },

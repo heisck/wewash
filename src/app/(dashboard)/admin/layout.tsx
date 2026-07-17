@@ -73,18 +73,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Phone OTP via Better Auth phoneNumber plugin when available
-      const client = authClient as typeof authClient & {
-        phoneNumber?: {
-          sendOtp: (args: { phoneNumber: string }) => Promise<{ error?: { message?: string } }>;
-        };
-      };
-      if (!client.phoneNumber?.sendOtp) {
-        toast.error("OTP sign-in is not configured on this deployment.");
-        setIsLoading(false);
-        return;
-      }
-      const { error } = await client.phoneNumber.sendOtp({ phoneNumber: phone });
+      const { error } = await authClient.phoneNumber.sendOtp({ phoneNumber: phone });
       if (error) {
         toast.error(error.message || "Could not send OTP.");
       } else {
@@ -101,22 +90,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     e.preventDefault();
     setIsLoading(true);
     try {
-      const client = authClient as typeof authClient & {
-        phoneNumber?: {
-          verify: (args: {
-            phoneNumber: string;
-            code: string;
-          }) => Promise<{ error?: { message?: string } }>;
-        };
-      };
-      if (!client.phoneNumber?.verify) {
-        toast.error("OTP verification is not configured.");
-        setIsLoading(false);
-        return;
-      }
-      const { error } = await client.phoneNumber.verify({ phoneNumber: phone, code: otp });
+      const { error } = await authClient.phoneNumber.verify({
+        phoneNumber: phone,
+        code: otp,
+      });
       if (error) toast.error(error.message || "Invalid code.");
-      else toast.success("Signed in.");
+      else {
+        toast.success("Signed in.");
+        router.refresh();
+      }
     } catch {
       toast.error("Could not verify OTP.");
     }
