@@ -308,7 +308,7 @@ function RotationInner() {
       toast.success(
         `Rotation saved — ${slots.length} slot(s) across ${
           Object.values(roomDays).filter((d) => d.length).length
-        } room(s).`
+        } room(s). Students in new/changed slots get SMS.`
       );
       reload();
       reloadGroup();
