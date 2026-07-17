@@ -58,41 +58,15 @@ export class StudentService {
   }
 
   /**
-   * Self-onboarding: the signed-in user creates their own student profile,
-   * choosing a hostel (hall) the admin has already created. Idempotent-ish:
-   * refuses if a profile or student ID already exists.
+   * Self-onboarding is disabled. Student accounts are created only by admins.
    */
   async onboardSelf(
-    user: User | null,
-    data: { studentId: string; phone: string; hallId?: string; roomNumber?: string }
+    _user: User | null,
+    _data: { studentId: string; phone: string; hallId?: string; roomNumber?: string }
   ): Promise<Student> {
-    if (!user) throw AppError.unauthorized("Not signed in");
-
-    const existingProfile = await this.repo.findByUserId(user.id);
-    if (existingProfile) return existingProfile; // already onboarded
-
-    const existingId = await this.repo.findByStudentId(data.studentId);
-    if (existingId) throw AppError.conflict(`Student ID ${data.studentId} is already registered`);
-
-    const [firstName, ...rest] = (user.name || "Student").trim().split(" ");
-    const lastName = rest.join(" ") || "";
-
-    const student = await this.repo.onboard({
-      userId: user.id,
-      studentId: data.studentId,
-      firstName,
-      lastName,
-      phone: data.phone,
-      email: user.email ?? null,
-      hallId: data.hallId,
-      roomNumber: data.roomNumber,
-    });
-
-    if (student.phone) {
-      void notificationService.sendWelcome(student.phone, student.firstName);
-    }
-
-    return student;
+    throw AppError.forbidden(
+      "Student accounts are created by the administrator. Please sign in with the email assigned to you."
+    );
   }
 
   /**
@@ -108,7 +82,9 @@ export class StudentService {
   }
 
   /**
-   * Create a new student.
+   * Create a new student. Admin-only.
+   * If email is provided, also creates a Better Auth User (role STUDENT)
+   * so the student can sign in with the assigned email.
    */
   async createStudent(user: User | null, data: CreateStudentInput): Promise<Student> {
     requirePermission(user, "students", "create");
@@ -118,9 +94,72 @@ export class StudentService {
       throw AppError.conflict(`Student with ID ${data.studentId} already exists`);
     }
 
-    const student = await this.repo.create(data);
+    const { temporaryPassword, weeklyAmount, documentUrls, roomId, ...fields } = data;
 
-    // Fire-and-forget welcome SMS with the app link + scan hint.
+    let userId: string | undefined;
+
+    if (data.email) {
+      const { prisma } = await import("@/lib/db/prisma");
+      const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
+      if (existingUser) {
+        const linked = await this.repo.findByUserId(existingUser.id);
+        if (linked) throw AppError.conflict(`Email ${data.email} is already linked to a student`);
+        userId = existingUser.id;
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            name: `${data.firstName} ${data.lastName}`,
+            phone: data.phone,
+            role: "STUDENT",
+          },
+        });
+      } else {
+        // Create credential account without signing the admin out of their session.
+        const { hashPassword } = await import("better-auth/crypto");
+        const password =
+          temporaryPassword ||
+          `Ww-${data.studentId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "Student"}1!`;
+        const hashed = await hashPassword(password);
+        const createdUser = await prisma.user.create({
+          data: {
+            name: `${data.firstName} ${data.lastName}`,
+            email: data.email,
+            emailVerified: true,
+            phone: data.phone,
+            role: "STUDENT",
+            isActive: true,
+          },
+        });
+        userId = createdUser.id;
+        await prisma.account.create({
+          data: {
+            userId: createdUser.id,
+            accountId: createdUser.id,
+            providerId: "credential",
+            password: hashed,
+          },
+        });
+      }
+    }
+
+    const student = await this.repo.create({
+      studentId: fields.studentId,
+      indexNumber: fields.indexNumber,
+      firstName: fields.firstName,
+      lastName: fields.lastName,
+      phone: fields.phone,
+      secondaryPhone: fields.secondaryPhone,
+      whatsapp: fields.whatsapp,
+      email: fields.email,
+      emergencyContact: fields.emergencyContact,
+      emergencyPhone: fields.emergencyPhone,
+      profileImageUrl: fields.profileImageUrl,
+      documentUrls: documentUrls ?? [],
+      weeklyAmount: weeklyAmount != null ? weeklyAmount : 0,
+      room: roomId ? { connect: { id: roomId } } : undefined,
+      user: userId ? { connect: { id: userId } } : undefined,
+    });
+
     if (student.phone) {
       void notificationService.sendWelcome(student.phone, student.firstName);
     }
@@ -142,7 +181,17 @@ export class StudentService {
       if (existing) throw AppError.conflict(`Student ID ${data.studentId} is already in use`);
     }
 
-    return this.repo.update(id, data);
+    const { temporaryPassword: _pw, roomId, weeklyAmount, documentUrls, ...rest } = data;
+    const updateData: Prisma.StudentUpdateInput = { ...rest };
+    if (roomId !== undefined) {
+      updateData.room = roomId ? { connect: { id: roomId } } : { disconnect: true };
+    }
+    if (weeklyAmount !== undefined) updateData.weeklyAmount = weeklyAmount;
+    if (documentUrls !== undefined) updateData.documentUrls = documentUrls;
+    // Don't pass temporaryPassword into Prisma
+    delete (updateData as { temporaryPassword?: string }).temporaryPassword;
+
+    return this.repo.update(id, updateData);
   }
 
   /**

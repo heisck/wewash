@@ -136,7 +136,9 @@ export class HallService {
 
     const room = await this.repo.createRoom({
       number: data.number,
+      block: data.block,
       floor: data.floor,
+      section: data.section,
       capacity: data.capacity,
       hall: { connect: { id: data.hallId } },
     });

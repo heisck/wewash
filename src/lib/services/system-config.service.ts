@@ -10,12 +10,20 @@ import { auditLogService } from "./audit-log.service";
  * fall back to env defaults when unset.
  */
 
-export type ContactConfig = { whatsapp: string; email: string; phone: string };
+export type ContactConfig = {
+  whatsapp: string;
+  email: string;
+  phone: string;
+  defaultWeeklyAmount?: number;
+  rotationHandoffTime?: string;
+};
 
 const CONTACT_KEYS = {
   whatsapp: "contact.whatsapp",
   email: "contact.email",
   phone: "contact.phone",
+  defaultWeeklyAmount: "payments.defaultWeeklyAmount",
+  rotationHandoffTime: "schedule.handoffTime",
 } as const;
 
 export class SystemConfigService {
@@ -24,11 +32,19 @@ export class SystemConfigService {
     const rows = await prisma.systemConfig.findMany({
       where: { key: { in: Object.values(CONTACT_KEYS) } },
     });
-    const map = new Map(rows.map((r) => [r.key, String(r.value ?? "")]));
+    const map = new Map(rows.map((r) => [r.key, r.value]));
+    const weeklyRaw = map.get(CONTACT_KEYS.defaultWeeklyAmount);
+    const weekly =
+      typeof weeklyRaw === "number"
+        ? weeklyRaw
+        : Number(weeklyRaw ?? 0) || undefined;
     return {
-      whatsapp: map.get(CONTACT_KEYS.whatsapp) || env.NEXT_PUBLIC_WHATSAPP_NUMBER || "",
-      email: map.get(CONTACT_KEYS.email) || env.NEXT_PUBLIC_CONTACT_EMAIL || "",
-      phone: map.get(CONTACT_KEYS.phone) || env.NEXT_PUBLIC_WHATSAPP_NUMBER || "",
+      whatsapp: String(map.get(CONTACT_KEYS.whatsapp) ?? "") || env.NEXT_PUBLIC_WHATSAPP_NUMBER || "",
+      email: String(map.get(CONTACT_KEYS.email) ?? "") || env.NEXT_PUBLIC_CONTACT_EMAIL || "",
+      phone: String(map.get(CONTACT_KEYS.phone) ?? "") || env.NEXT_PUBLIC_WHATSAPP_NUMBER || "",
+      defaultWeeklyAmount: weekly,
+      rotationHandoffTime:
+        String(map.get(CONTACT_KEYS.rotationHandoffTime) ?? "") || "08:00",
     };
   }
 
@@ -43,19 +59,33 @@ export class SystemConfigService {
   async updateContact(user: User | null, data: Partial<ContactConfig>) {
     requirePermission(user, "system_config", "update");
 
-    const entries: { key: string; value: string; label: string }[] = [];
+    const entries: { key: string; value: string | number; label: string; group: string }[] = [];
     if (data.whatsapp !== undefined)
-      entries.push({ key: CONTACT_KEYS.whatsapp, value: data.whatsapp, label: "WhatsApp number" });
+      entries.push({ key: CONTACT_KEYS.whatsapp, value: data.whatsapp, label: "WhatsApp number", group: "contact" });
     if (data.email !== undefined)
-      entries.push({ key: CONTACT_KEYS.email, value: data.email, label: "Contact email" });
+      entries.push({ key: CONTACT_KEYS.email, value: data.email, label: "Contact email", group: "contact" });
     if (data.phone !== undefined)
-      entries.push({ key: CONTACT_KEYS.phone, value: data.phone, label: "Contact phone" });
+      entries.push({ key: CONTACT_KEYS.phone, value: data.phone, label: "Contact phone", group: "contact" });
+    if (data.defaultWeeklyAmount !== undefined)
+      entries.push({
+        key: CONTACT_KEYS.defaultWeeklyAmount,
+        value: data.defaultWeeklyAmount,
+        label: "Default weekly subscription (GHS)",
+        group: "payments",
+      });
+    if (data.rotationHandoffTime !== undefined)
+      entries.push({
+        key: CONTACT_KEYS.rotationHandoffTime,
+        value: data.rotationHandoffTime,
+        label: "Default rotation handoff time",
+        group: "schedule",
+      });
 
     for (const e of entries) {
       await prisma.systemConfig.upsert({
         where: { key: e.key },
         update: { value: e.value },
-        create: { key: e.key, value: e.value, group: "contact", label: e.label },
+        create: { key: e.key, value: e.value, group: e.group, label: e.label },
       });
     }
 

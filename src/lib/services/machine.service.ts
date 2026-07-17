@@ -35,6 +35,8 @@ export class MachineService {
     if (filters.search) {
       where.OR = [
         { serialNumber: { contains: filters.search, mode: "insensitive" } },
+        { name: { contains: filters.search, mode: "insensitive" } },
+        { code: { contains: filters.search, mode: "insensitive" } },
         { brand: { contains: filters.search, mode: "insensitive" } },
       ];
     }
@@ -47,7 +49,14 @@ export class MachineService {
       take,
       where,
       orderBy: { createdAt: "desc" },
-      include: { hall: true },
+      include: {
+        hall: true,
+        machineSchedules: {
+          where: { isActive: true },
+          include: { room: true },
+          orderBy: { orderIndex: "asc" },
+        },
+      },
     });
 
     return { data, total };
@@ -83,7 +92,36 @@ export class MachineService {
 
     // Each machine gets an opaque QR token embedded in its printed QR code.
     const qrToken = randomBytes(16).toString("hex");
-    return this.repo.create({ ...data, qrToken });
+    const {
+      hallId,
+      purchaseDate,
+      installationDate,
+      warrantyExpiry,
+      serialNumber,
+      name,
+      code,
+      brand,
+      model,
+      capacityKg,
+      machineType,
+      notes,
+    } = data;
+
+    return this.repo.create({
+      serialNumber,
+      name,
+      code,
+      brand,
+      model,
+      capacityKg,
+      machineType,
+      notes,
+      qrToken,
+      purchaseDate: purchaseDate ?? undefined,
+      installationDate: installationDate ?? undefined,
+      warrantyExpiry: warrantyExpiry ?? undefined,
+      hall: hallId ? { connect: { id: hallId } } : undefined,
+    });
   }
 
   /**
@@ -114,7 +152,16 @@ export class MachineService {
       if (existing) throw AppError.conflict("Serial number already in use");
     }
 
-    return this.repo.update(id, data);
+    const { hallId, purchaseDate, installationDate, warrantyExpiry, ...rest } = data;
+    const updateData: Prisma.MachineUpdateInput = { ...rest };
+    if (hallId !== undefined) {
+      updateData.hall = hallId ? { connect: { id: hallId } } : { disconnect: true };
+    }
+    if (purchaseDate !== undefined) updateData.purchaseDate = purchaseDate;
+    if (installationDate !== undefined) updateData.installationDate = installationDate;
+    if (warrantyExpiry !== undefined) updateData.warrantyExpiry = warrantyExpiry;
+
+    return this.repo.update(id, updateData);
   }
 
   /**

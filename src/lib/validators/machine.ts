@@ -6,11 +6,16 @@ import { idSchema } from "./shared";
 export const createMachineSchema = z.object({
   serialNumber: z
     .string()
-    .min(1, "Serial number is required")
+    .min(1, "Machine ID / serial number is required")
     .max(100),
+  name: z.string().max(100).optional(),
+  code: z.string().max(50).optional(), // e.g. WeWash W1
   brand: z.string().max(100).optional(),
   model: z.string().max(100).optional(),
+  capacityKg: z.coerce.number().positive().max(100).optional(),
+  machineType: z.string().max(100).optional(),
   purchaseDate: z.coerce.date().optional(),
+  installationDate: z.coerce.date().optional(),
   warrantyExpiry: z.coerce.date().optional(),
   hallId: idSchema.optional(),
   notes: z.string().max(1000).optional(),
@@ -43,12 +48,12 @@ export const createMachineScheduleSchema = z.object({
   endTime: z
     .string()
     .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:MM 24h format"),
-  orderIndex: z.number().int().min(0).max(6),
+  orderIndex: z.number().int().min(0).max(20),
 });
 
 export type CreateMachineScheduleInput = z.infer<typeof createMachineScheduleSchema>;
 
-// ─── Bulk Schedule (set all 7 days at once) ──────────────────
+// ─── Bulk Schedule (any number of rooms; admin can start with 1+) ──
 
 export const bulkMachineScheduleSchema = z.object({
   machineId: idSchema,
@@ -62,11 +67,11 @@ export const bulkMachineScheduleSchema = z.object({
         ]),
         startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
         endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
-        orderIndex: z.number().int().min(0).max(6),
+        orderIndex: z.number().int().min(0).max(20),
       })
     )
-    .min(1, "At least one schedule is required")
-    .max(7, "Maximum 7 schedules per machine"),
+    .min(1, "At least one schedule slot is required")
+    .max(14, "Maximum 14 schedule entries per machine"),
 });
 
 export type BulkMachineScheduleInput = z.infer<typeof bulkMachineScheduleSchema>;

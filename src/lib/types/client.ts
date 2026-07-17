@@ -8,28 +8,41 @@ export type HallDTO = {
   name: string;
   code: string;
   location?: string | null;
+  description?: string | null;
   capacity: number;
   isActive: boolean;
+  rooms?: RoomDTO[];
+  _count?: { rooms: number; machines: number };
 };
 
 export type RoomDTO = {
   id: string;
   number: string;
+  block?: string | null;
   floor?: number | null;
+  section?: string | null;
   capacity: number;
   hallId: string;
   hall?: HallDTO | null;
+  students?: StudentDTO[];
+  _count?: { students: number };
 };
 
 export type StudentDTO = {
   id: string;
   studentId: string;
+  indexNumber?: string | null;
   firstName: string;
   lastName: string;
   phone: string;
+  secondaryPhone?: string | null;
+  whatsapp?: string | null;
   email?: string | null;
   roomId?: string | null;
   room?: RoomDTO | null;
+  weeklyAmount?: string | number;
+  profileImageUrl?: string | null;
+  documentUrls?: string[];
   isActive: boolean;
   createdAt: string;
 };
@@ -48,31 +61,63 @@ export type MeResponse = {
     | null;
 };
 
+export type MachineScheduleDTO = {
+  id: string;
+  machineId: string;
+  roomId: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  orderIndex: number;
+  isActive: boolean;
+  room?: RoomDTO | null;
+};
+
 export type MachineDTO = {
   id: string;
   serialNumber: string;
+  name?: string | null;
+  code?: string | null;
   qrToken?: string | null;
   brand?: string | null;
   model?: string | null;
+  capacityKg?: number | null;
+  machineType?: string | null;
+  purchaseDate?: string | null;
+  installationDate?: string | null;
   status: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | "FAULTY" | "DECOMMISSIONED";
   hallId?: string | null;
   hall?: HallDTO | null;
   notes?: string | null;
+  schedules?: MachineScheduleDTO[];
+  currentRoom?: { id: string; number: string; block?: string | null; floor?: number | null; section?: string | null } | null;
+  previousRoom?: { id: string; number: string } | null;
+  nextRoom?: { id: string; number: string } | null;
+  hoursToNextTransfer?: number | null;
 };
 
 export type PaymentDTO = {
   id: string;
   studentId: string;
   amount: string;
+  amountDue?: string | null;
+  amountPaid?: string | null;
   currency: string;
   method: "CASH" | "MOBILE_MONEY" | "BANK_TRANSFER" | "CARD" | "OTHER";
   status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED" | "CANCELLED";
   reference?: string | null;
+  momoTransactionId?: string | null;
   description?: string | null;
   paidAt?: string | null;
   dueDate?: string | null;
+  receiptUrl?: string | null;
   createdAt: string;
-  student?: { firstName: string; lastName: string; studentId: string } | null;
+  student?: {
+    firstName: string;
+    lastName: string;
+    studentId: string;
+    room?: RoomDTO | null;
+  } | null;
 };
 
 export type FaultDTO = {
@@ -86,7 +131,7 @@ export type FaultDTO = {
   imageUrls: string[];
   resolution?: string | null;
   createdAt: string;
-  machine?: { serialNumber: string } | null;
+  machine?: { serialNumber: string; name?: string | null; code?: string | null } | null;
   reportedBy?: { firstName: string; lastName: string } | null;
 };
 
@@ -95,11 +140,12 @@ export type RotationInfo = {
   dayOfWeek: string;
   room: { id: string; number: string } | null;
   hall: { code: string; name: string } | null;
-  startTime: string; // "HH:MM"
+  startTime: string;
   endTime: string;
-  windowStartAt: string; // ISO — when this room's window opened
-  windowEndAt: string; // ISO — when it moves to the next room
+  windowStartAt: string;
+  windowEndAt: string;
   minutesToNextRotation: number;
+  hoursToNextRotation: number;
   nextRoom: { id: string; number: string } | null;
 };
 
@@ -113,14 +159,14 @@ export type ScanResult = {
     minutesLate: number | null;
     status: "IN_USE" | "RETURNED" | "EXPIRED";
   };
-  machine: { id: string; serialNumber: string };
+  machine: { id: string; serialNumber: string; name?: string | null; code?: string | null };
   room: { id: string; number: string } | null;
   hall: { code: string; name: string } | null;
   minutesToNextRotation: number;
 };
 
 export type StudentRotation = {
-  machine: { id: string; serialNumber: string };
+  machine: { id: string; serialNumber: string; name?: string | null; code?: string | null };
   myRoom: { id: string; number: string };
   hall: { code: string; name: string } | null;
   myDay: string;
@@ -130,6 +176,7 @@ export type StudentRotation = {
   currentRoom: { id: string; number: string } | null;
   windowEndAt: string | null;
   minutesToNextRotation: number;
+  hoursToNextRotation: number;
 } | null;
 
 export type ActiveSession = {
@@ -144,15 +191,63 @@ export type ActiveSession = {
   hall: { code: string; name: string } | null;
 } | null;
 
+export type TransferTimelineItem = {
+  machineId: string;
+  machineLabel: string;
+  currentRoom: string | null;
+  nextRoom: string | null;
+  hallCode: string | null;
+  hoursRemaining: number;
+  windowEndAt: string;
+};
+
+export type MachineLocationItem = {
+  machineId: string;
+  machineLabel: string;
+  status: string;
+  hallCode: string | null;
+  currentRoom: string | null;
+  previousRoom: string | null;
+  nextRoom: string | null;
+  hoursToNextTransfer: number | null;
+};
+
 export type DashboardStats = {
+  totalIncome: number;
+  weeklyIncome: number;
+  monthlyIncome: number;
+  amountCollected: number;
+  outstandingBalance: number;
   activeStudents: number;
-  machines: { total: number; active: number; faulty: number; maintenance: number };
+  registeredStudents: number;
+  registeredRooms: number;
+  machines: {
+    total: number;
+    active: number;
+    faulty: number;
+    maintenance: number;
+  };
   activeContracts: number;
-  revenue: number;
+  openFaults: number;
+  /** @deprecated use totalIncome / amountCollected */
+  revenue?: number;
+  upcomingTransfers: TransferTimelineItem[];
+  machineLocations: MachineLocationItem[];
+  recentFaults: Array<{
+    id: string;
+    title: string;
+    severity: string;
+    status: string;
+    createdAt: string;
+    studentName?: string;
+    machineLabel?: string;
+  }>;
 };
 
 export type ContactConfig = {
   whatsapp: string;
   email: string;
   phone: string;
+  defaultWeeklyAmount?: number;
+  rotationHandoffTime?: string;
 };

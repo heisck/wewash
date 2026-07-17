@@ -143,12 +143,18 @@ export default function AdminStudents() {
   );
 }
 
-/* ─── Register student ─── */
+/* ─── Register student (admin-only account creation) ─── */
 function RegisterDialog({ open, onClose, halls, onDone }: { open: boolean; onClose: () => void; halls: HallDTO[]; onDone: () => void }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [indexNumber, setIndexNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [secondaryPhone, setSecondary] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [weeklyAmount, setWeekly] = useState("");
+  const [temporaryPassword, setTempPw] = useState("");
   const [hallId, setHallId] = useState("");
   const [roomId, setRoomId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -162,13 +168,21 @@ function RegisterDialog({ open, onClose, halls, onDone }: { open: boolean; onClo
         firstName,
         lastName,
         studentId,
+        indexNumber: indexNumber || undefined,
+        email,
         phone,
+        secondaryPhone: secondaryPhone || undefined,
+        whatsapp: whatsapp || undefined,
+        weeklyAmount: weeklyAmount ? Number(weeklyAmount) : undefined,
+        temporaryPassword: temporaryPassword || undefined,
         roomId: roomId || undefined,
       });
-      toast.success(`${firstName} registered. A welcome SMS is on its way.`);
+      toast.success(`${firstName} registered with login for ${email}.`);
       onDone();
       onClose();
-      setFirstName(""); setLastName(""); setStudentId(""); setPhone(""); setHallId(""); setRoomId("");
+      setFirstName(""); setLastName(""); setStudentId(""); setIndexNumber("");
+      setEmail(""); setPhone(""); setSecondary(""); setWhatsapp("");
+      setWeekly(""); setTempPw(""); setHallId(""); setRoomId("");
     } catch (err) {
       toast.error((err as ApiError).message || "Could not register student.");
     } finally {
@@ -178,33 +192,52 @@ function RegisterDialog({ open, onClose, halls, onDone }: { open: boolean; onClo
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
         <DialogHeader>
           <DialogTitle className="font-black uppercase tracking-wider">Register student</DialogTitle>
-          <DialogDescription>Add a student to the program and assign their room.</DialogDescription>
+          <DialogDescription>
+            Admin-only. Creates the student record and a login account for the assigned email.
+            Students cannot self-sign-up.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <PixelLabel htmlFor="fn">First name</PixelLabel>
+              <PixelLabel htmlFor="fn">Full name — first</PixelLabel>
               <PixelInput id="fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <PixelLabel htmlFor="ln">Last name</PixelLabel>
               <PixelInput id="ln" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <PixelLabel htmlFor="sid">Student ID</PixelLabel>
+              <PixelLabel htmlFor="sid">Student ID number</PixelLabel>
               <PixelInput id="sid" value={studentId} onChange={(e) => setStudentId(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <PixelLabel htmlFor="ph">Phone</PixelLabel>
+              <PixelLabel htmlFor="idx">Index number</PixelLabel>
+              <PixelInput id="idx" value={indexNumber} onChange={(e) => setIndexNumber(e.target.value)} />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <PixelLabel htmlFor="em">Email (login)</PixelLabel>
+              <PixelInput id="em" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="ph">Primary phone</PixelLabel>
               <PixelInput id="ph" placeholder="0241234567" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <PixelLabel htmlFor="ph2">Secondary phone</PixelLabel>
+              <PixelInput id="ph2" value={secondaryPhone} onChange={(e) => setSecondary(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="wa">WhatsApp number</PixelLabel>
+              <PixelInput id="wa" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <PixelLabel htmlFor="wk">Weekly subscription (GHS)</PixelLabel>
+              <PixelInput id="wk" type="number" step="0.01" value={weeklyAmount} onChange={(e) => setWeekly(e.target.value)} />
+            </div>
             <div className="space-y-2">
               <PixelLabel htmlFor="hall">Hostel</PixelLabel>
               <PixelSelect id="hall" value={hallId} onChange={(e) => { setHallId(e.target.value); setRoomId(""); }}>
@@ -213,16 +246,26 @@ function RegisterDialog({ open, onClose, halls, onDone }: { open: boolean; onClo
               </PixelSelect>
             </div>
             <div className="space-y-2">
-              <PixelLabel htmlFor="room">Room</PixelLabel>
+              <PixelLabel htmlFor="room">Assigned room</PixelLabel>
               <PixelSelect id="room" value={roomId} onChange={(e) => setRoomId(e.target.value)} disabled={!hallId}>
                 <option value="">Select room</option>
                 {(rooms ?? []).map((r) => <option key={r.id} value={r.id}>Room {r.number}</option>)}
               </PixelSelect>
             </div>
+            <div className="space-y-2 col-span-2">
+              <PixelLabel htmlFor="tpw">Temporary password (optional)</PixelLabel>
+              <PixelInput
+                id="tpw"
+                type="text"
+                placeholder="Auto-generated if left blank"
+                value={temporaryPassword}
+                onChange={(e) => setTempPw(e.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter className="gap-2 pt-4">
             <PixelButton type="button" variant="outline" onClick={onClose}>Cancel</PixelButton>
-            <PixelButton type="submit" disabled={saving}>{saving ? "Saving..." : "Register"}</PixelButton>
+            <PixelButton type="submit" disabled={saving}>{saving ? "Saving..." : "Create student account"}</PixelButton>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -247,6 +290,8 @@ function PaymentDialog({ student, onClose, onDone }: { student: StudentDTO | nul
       await api.post("/api/v1/payments", {
         studentId: student.id,
         amount: amt,
+        amountPaid: amt,
+        amountDue: student.weeklyAmount != null ? Number(student.weeklyAmount) : amt,
         method,
         reference: reference || undefined,
       });

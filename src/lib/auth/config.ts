@@ -19,6 +19,8 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
+    // Public self-registration is off. Admins provision student accounts.
+    disableSignUp: true,
   },
 
   socialProviders: {

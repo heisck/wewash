@@ -161,7 +161,10 @@ export class FinanceService {
       take,
       where,
       orderBy: { createdAt: "desc" },
-      include: { student: true, contract: true },
+      include: {
+        student: { include: { room: { include: { hall: true } } } },
+        contract: true,
+      },
     });
 
     return { data, total };
@@ -190,17 +193,36 @@ export class FinanceService {
       if (existing) throw AppError.conflict("Payment reference already exists");
     }
 
+    const amountPaid = data.amountPaid ?? data.amount ?? 0;
+    const amountDue = data.amountDue ?? amountPaid;
+    if (!amountPaid && !amountDue) {
+      throw AppError.badRequest("Amount due or amount paid is required");
+    }
+
+    // Derive status: paid / partial / pending
+    let status = data.status ?? "COMPLETED";
+    if (!data.status) {
+      if (amountPaid <= 0) status = "PENDING";
+      else if (amountDue > 0 && amountPaid < amountDue) status = "PENDING"; // partial — still outstanding
+      else status = "COMPLETED";
+    }
+
     const payment = await this.repo.createPayment({
       student: { connect: { id: data.studentId } },
       contract: data.contractId ? { connect: { id: data.contractId } } : undefined,
-      amount: new Prisma.Decimal(data.amount),
-      currency: data.currency,
+      amount: new Prisma.Decimal(amountPaid || amountDue),
+      amountDue: new Prisma.Decimal(amountDue),
+      amountPaid: new Prisma.Decimal(amountPaid),
+      currency: data.currency ?? "GHS",
       method: data.method,
       reference: data.reference,
+      momoTransactionId: data.momoTransactionId,
       description: data.description,
       dueDate: data.dueDate,
-      paidAt: data.paidAt || new Date(),
-      status: "COMPLETED", // Assuming manually recorded payment by admin is completed
+      paidAt: data.paidAt || (amountPaid > 0 ? new Date() : undefined),
+      receiptUrl: data.receiptUrl || undefined,
+      notes: data.notes,
+      status,
       recordedBy: user?.id ?? null,
     });
 
@@ -212,14 +234,15 @@ export class FinanceService {
       newValues: payment,
     });
 
-    // Notify the student their payment was confirmed (SMS + push).
-    void notificationService.notify({
-      userIds: student.userId ? [student.userId] : [],
-      phones: [student.phone],
-      title: "Payment confirmed",
-      body: `We received your payment of GHS ${data.amount}. Thank you! - WeWash`,
-      url: "/student/billing",
-    });
+    if (status === "COMPLETED" || amountPaid > 0) {
+      void notificationService.notify({
+        userIds: student.userId ? [student.userId] : [],
+        phones: [student.phone],
+        title: "Payment confirmed",
+        body: `We received your payment of GHS ${amountPaid}. Thank you! - WeWash`,
+        url: "/student/billing",
+      });
+    }
 
     return payment;
   }
@@ -232,12 +255,19 @@ export class FinanceService {
 
     const updateData: Prisma.PaymentUpdateInput = {};
     if (data.status) updateData.status = data.status;
-    if (data.amount) updateData.amount = new Prisma.Decimal(data.amount);
+    if (data.amount !== undefined) updateData.amount = new Prisma.Decimal(data.amount);
+    if (data.amountDue !== undefined) updateData.amountDue = new Prisma.Decimal(data.amountDue);
+    if (data.amountPaid !== undefined) {
+      updateData.amountPaid = new Prisma.Decimal(data.amountPaid);
+      updateData.amount = new Prisma.Decimal(data.amountPaid);
+    }
     if (data.method) updateData.method = data.method;
     if (data.reference) updateData.reference = data.reference;
+    if (data.momoTransactionId !== undefined) updateData.momoTransactionId = data.momoTransactionId;
     if (data.description) updateData.description = data.description;
     if (data.dueDate) updateData.dueDate = data.dueDate;
     if (data.paidAt) updateData.paidAt = data.paidAt;
+    if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl || null;
     if (data.notes) updateData.notes = data.notes;
 
     const updated = await this.repo.updatePayment(id, updateData);

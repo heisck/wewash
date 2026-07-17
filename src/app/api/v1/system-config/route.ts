@@ -11,6 +11,11 @@ const contactSchema = z.object({
   whatsapp: z.string().max(20).optional(),
   email: z.string().email().or(z.literal("")).optional(),
   phone: z.string().max(20).optional(),
+  defaultWeeklyAmount: z.coerce.number().min(0).max(100_000).optional(),
+  rotationHandoffTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Use HH:MM")
+    .optional(),
 });
 
 /** GET /api/v1/system-config?group=contact — admin reads a config group. */

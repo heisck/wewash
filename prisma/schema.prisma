@@ -219,8 +219,10 @@ model Hall {
 model Room {
   id          String   @id @default(cuid())
   number      String   // Room number e.g., "101", "A12"
+  block       String?  // e.g. "Block A"
   floor       Int?
-  capacity    Int      @default(1) // How many students
+  section     String?  // e.g. "North wing"
+  capacity    Int      @default(1) // Number of occupants
   hallId      String
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -242,14 +244,20 @@ model Room {
 model Student {
   id              String   @id @default(cuid())
   studentId       String   @unique // University student ID
+  indexNumber     String?  // Index number if applicable
   firstName       String
   lastName        String
-  phone           String
+  phone           String   // Primary phone
+  secondaryPhone  String?
+  whatsapp        String?
   email           String?
   roomId          String?
   userId          String?  @unique
+  weeklyAmount    Decimal  @default(0) @db.Decimal(10, 2) // Weekly subscription fee
   emergencyContact String?
   emergencyPhone  String?
+  profileImageUrl String?
+  documentUrls    String[] @default([])
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -273,20 +281,25 @@ model Student {
 }
 
 model Machine {
-  id              String        @id @default(cuid())
-  serialNumber    String        @unique
-  qrToken         String?       @unique // Opaque token embedded in the machine's printed QR code
-  brand           String?
-  model           String?
-  purchaseDate    DateTime?
-  warrantyExpiry  DateTime?
-  status          MachineStatus @default(ACTIVE)
-  hallId          String?
-  notes           String?
-  isActive        Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
+  id               String        @id @default(cuid())
+  serialNumber     String        @unique // Machine ID / serial
+  name             String?       // Display name
+  code             String?       @unique // e.g. "WeWash W1"
+  qrToken          String?       @unique // Opaque token embedded in the machine's printed QR code
+  brand            String?
+  model            String?
+  capacityKg       Float?        // Capacity in kg
+  machineType      String?       // e.g. "Front load", "Top load"
+  purchaseDate     DateTime?
+  installationDate DateTime?
+  warrantyExpiry   DateTime?
+  status           MachineStatus @default(ACTIVE)
+  hallId           String?
+  notes            String?
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
 
   // Relations
   hall              Hall?              @relation(fields: [hallId], references: [id], onDelete: SetNull)
@@ -395,23 +408,26 @@ model PushSubscription {
 // ╚═══════════════════════════════════════════════════════════════╝
 
 model Payment {
-  id              String        @id @default(cuid())
-  studentId       String
-  contractId      String?
-  amount          Decimal       @db.Decimal(10, 2)
-  currency        String        @default("GHS")
-  method          PaymentMethod
-  status          PaymentStatus @default(PENDING)
-  reference       String?       @unique // External reference / receipt number
-  description     String?
-  paidAt          DateTime?
-  dueDate         DateTime?
-  receiptUrl      String?
-  notes           String?
-  recordedBy      String?       // Admin user ID who recorded this
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
+  id                 String        @id @default(cuid())
+  studentId          String
+  contractId         String?
+  amount             Decimal       @db.Decimal(10, 2) // Amount paid (legacy + primary)
+  amountDue          Decimal?      @db.Decimal(10, 2)
+  amountPaid         Decimal?      @db.Decimal(10, 2)
+  currency           String        @default("GHS")
+  method             PaymentMethod
+  status             PaymentStatus @default(PENDING)
+  reference          String?       @unique // External reference / receipt number
+  momoTransactionId  String?       // Mobile Money transaction ID
+  description        String?
+  paidAt             DateTime?
+  dueDate            DateTime?
+  receiptUrl         String?       // Screenshot / receipt of payment confirmation
+  notes              String?
+  recordedBy         String?       // Admin user ID who recorded this
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
 
   // Relations
   student  Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -615,6 +631,39 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ╔═══════════════════════════════════════════════════════════════╗
+// ║  DAY TRANSFER / SWAP REQUESTS                                 ║
+// ╚═══════════════════════════════════════════════════════════════╝
+
+enum DayTransferStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+model DayTransferRequest {
+  id              String            @id @default(cuid())
+  studentId       String
+  machineId       String
+  fromDay         DayOfWeek
+  toDay           DayOfWeek?
+  swapRoomId      String?           // If swapping with another room
+  reason          String?           @db.Text
+  status          DayTransferStatus @default(PENDING)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  adminNote       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([studentId])
+  @@index([machineId])
+  @@index([status])
+  @@map("day_transfer_requests")
 }
 
 // ╔═══════════════════════════════════════════════════════════════╗

@@ -19,7 +19,9 @@ export type UpdateHallInput = z.infer<typeof updateHallSchema>;
 
 export const createRoomSchema = z.object({
   number: z.string().min(1, "Room number is required").max(50),
+  block: z.string().max(50).optional(),
   floor: z.coerce.number().int().optional(),
+  section: z.string().max(50).optional(),
   capacity: z.coerce.number().int().min(1).default(1),
   hallId: idSchema,
 });

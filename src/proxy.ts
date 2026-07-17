@@ -9,7 +9,7 @@ import { getSessionCookie } from "better-auth/cookies";
  * Unauthenticated users hitting a protected area are redirected to the right
  * login screen with a callback back to where they were headed.
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const sessionCookie = getSessionCookie(req);
 

@@ -40,14 +40,14 @@ export const rolePermissions: Permissions = {
   },
   ADMIN: {
     "*": ["read"],
-    machines: ["create", "read", "update"],
-    students: ["create", "read", "update"],
-    halls: ["read"],
-    rooms: ["read"],
-    contracts: ["create", "read", "update"],
-    payments: ["create", "read", "update"],
+    machines: ["create", "read", "update", "delete"],
+    students: ["create", "read", "update", "delete"],
+    halls: ["create", "read", "update", "delete"],
+    rooms: ["create", "read", "update", "delete"],
+    contracts: ["create", "read", "update", "delete"],
+    payments: ["create", "read", "update", "delete"],
     faults: ["create", "read", "update", "delete"],
-    schedules: ["create", "read", "update"],
+    schedules: ["create", "read", "update", "delete"],
     system_config: ["read", "update"], // Admins can edit contact/WhatsApp config
     notifications: ["create", "read"],  // Can broadcast notifications
     wash_sessions: ["read"],

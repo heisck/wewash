@@ -18,22 +18,22 @@ export default function LoginPage() {
         <>
           <p className="max-w-[320px] text-[11px] font-semibold leading-normal text-teal-900/50 dark:text-teal-100/50">
             By continuing, you agree to our{" "}
-            <a href="#" className="underline hover:text-teal-800 dark:hover:text-teal-200">
-              Terms of Service
-            </a>{" "}
+            <Link href="/terms" className="underline hover:text-teal-800 dark:hover:text-teal-200">
+              Terms
+            </Link>{" "}
             and{" "}
-            <a href="#" className="underline hover:text-teal-800 dark:hover:text-teal-200">
+            <Link href="/privacy" className="underline hover:text-teal-800 dark:hover:text-teal-200">
               Privacy Policy
-            </a>
-            .
+            </Link>
+            . Student accounts are created by your administrator.
           </p>
           <p className="text-[11px] font-black uppercase tracking-widest text-teal-900/60 dark:text-teal-100/60">
-            New here?{" "}
+            Need access?{" "}
             <Link
-              href="/signup"
+              href="/contact"
               className="text-teal-700 underline decoration-2 underline-offset-4 hover:text-teal-600 dark:text-teal-300 dark:hover:text-teal-200"
             >
-              Sign up
+              Contact admin
             </Link>
           </p>
           <Link
