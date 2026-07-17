@@ -28,6 +28,38 @@ export type RoomDTO = {
   _count?: { students: number };
 };
 
+export type StudentGroupDTO = {
+  id: string;
+  name: string;
+  hallId: string;
+  floor: string;
+  block: string;
+  notes?: string | null;
+  isActive: boolean;
+  hall?: Pick<HallDTO, "id" | "name" | "code"> | null;
+  _count?: { students: number };
+  /** Unique rooms in this group (rotation assigns days to rooms, not students) */
+  rooms?: Array<{
+    id: string;
+    number: string;
+    block?: string | null;
+    floor?: number | null;
+    studentCount: number;
+    students: { id: string; firstName: string; lastName: string }[];
+  }>;
+  students?: Array<{
+    id: string;
+    studentId: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email?: string | null;
+    roomNumber?: string | null;
+    roomId?: string | null;
+    isActive: boolean;
+  }>;
+};
+
 export type StudentDTO = {
   id: string;
   studentId: string;
@@ -39,7 +71,10 @@ export type StudentDTO = {
   whatsapp?: string | null;
   email?: string | null;
   roomId?: string | null;
+  roomNumber?: string | null;
+  groupId?: string | null;
   room?: RoomDTO | null;
+  group?: StudentGroupDTO | null;
   weeklyAmount?: string | number;
   profileImageUrl?: string | null;
   documentUrls?: string[];
@@ -130,9 +165,23 @@ export type FaultDTO = {
   status: "REPORTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "WONT_FIX";
   imageUrls: string[];
   resolution?: string | null;
+  estimatedCost?: string | number | null;
+  actualCost?: string | number | null;
+  resolvedAt?: string | null;
   createdAt: string;
-  machine?: { serialNumber: string; name?: string | null; code?: string | null } | null;
-  reportedBy?: { firstName: string; lastName: string } | null;
+  machine?: {
+    serialNumber: string;
+    name?: string | null;
+    code?: string | null;
+    status?: string;
+  } | null;
+  reportedBy?: {
+    firstName: string;
+    lastName: string;
+    studentId?: string;
+    roomNumber?: string | null;
+    room?: { number: string } | null;
+  } | null;
 };
 
 /** Rotation intelligence computed from MachineSchedule. */

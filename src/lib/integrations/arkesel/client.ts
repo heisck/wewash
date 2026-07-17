@@ -118,6 +118,13 @@ class ArkeselClient {
         backoffMultiplier: RETRY_POLICY.BACKOFF_MULTIPLIER,
         maxDelayMs: RETRY_POLICY.MAX_DELAY_MS,
         timeoutMs: this.config.timeoutMs,
+        // Don't retry client/validation errors (e.g. 422 expiry out of range)
+        shouldRetry: (error) => {
+          if (error instanceof ArkeselApiError) {
+            return error.statusCode >= 500 || error.statusCode === 429;
+          }
+          return true;
+        },
         onRetry: (error, attempt) => {
           arkeselLogger.warn(
             { endpoint, attempt, error: error.message },

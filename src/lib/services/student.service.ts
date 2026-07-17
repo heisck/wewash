@@ -27,14 +27,28 @@ export class StudentService {
     const { skip, take } = toSkipTake(pagination);
     const where: Prisma.StudentWhereInput = {};
 
+    const and: Prisma.StudentWhereInput[] = [];
     if (filters.search) {
-      where.OR = [
-        { studentId: { contains: filters.search, mode: "insensitive" } },
-        { firstName: { contains: filters.search, mode: "insensitive" } },
-        { lastName: { contains: filters.search, mode: "insensitive" } },
-      ];
+      and.push({
+        OR: [
+          { studentId: { contains: filters.search, mode: "insensitive" } },
+          { firstName: { contains: filters.search, mode: "insensitive" } },
+          { lastName: { contains: filters.search, mode: "insensitive" } },
+          { roomNumber: { contains: filters.search, mode: "insensitive" } },
+        ],
+      });
     }
     if (filters.roomId) where.roomId = filters.roomId;
+    if (filters.groupId) where.groupId = filters.groupId;
+    if (filters.hallId) {
+      and.push({
+        OR: [
+          { group: { hallId: filters.hallId } },
+          { room: { hallId: filters.hallId } },
+        ],
+      });
+    }
+    if (and.length) where.AND = and;
     if (filters.isActive !== undefined) where.isActive = filters.isActive;
 
     const [data, total] = await this.repo.findMany({
@@ -42,7 +56,10 @@ export class StudentService {
       take,
       where,
       orderBy: { createdAt: "desc" },
-      include: { room: { include: { hall: true } } },
+      include: {
+        room: { include: { hall: true } },
+        group: { include: { hall: true } },
+      },
     });
 
     return { data, total };
@@ -94,12 +111,56 @@ export class StudentService {
       throw AppError.conflict(`Student with ID ${data.studentId} already exists`);
     }
 
-    const { temporaryPassword, weeklyAmount, documentUrls, roomId, ...fields } = data;
+    const {
+      temporaryPassword,
+      weeklyAmount,
+      documentUrls,
+      roomId: explicitRoomId,
+      groupId,
+      roomNumber,
+      ...fields
+    } = data;
+
+    const { prisma } = await import("@/lib/db/prisma");
 
     let userId: string | undefined;
+    let resolvedRoomId: string | undefined = explicitRoomId;
+    let resolvedGroupId: string | undefined = groupId;
+    let resolvedRoomNumber: string | undefined = roomNumber;
+
+    if (groupId) {
+      const group = await prisma.studentGroup.findFirst({
+        where: { id: groupId, deletedAt: null, isActive: true },
+      });
+      if (!group) throw AppError.notFound("Student group", groupId);
+
+      // Type room number → upsert Room under the group's hall (for schedules)
+      if (roomNumber) {
+        const floorInt = Number.parseInt(group.floor, 10);
+        const room = await prisma.room.upsert({
+          where: {
+            hallId_number: { hallId: group.hallId, number: roomNumber },
+          },
+          update: {
+            block: group.block,
+            floor: Number.isFinite(floorInt) ? floorInt : undefined,
+            isActive: true,
+            deletedAt: null,
+          },
+          create: {
+            hallId: group.hallId,
+            number: roomNumber,
+            block: group.block,
+            floor: Number.isFinite(floorInt) ? floorInt : undefined,
+            capacity: 2,
+          },
+        });
+        resolvedRoomId = room.id;
+        resolvedRoomNumber = roomNumber;
+      }
+    }
 
     if (data.email) {
-      const { prisma } = await import("@/lib/db/prisma");
       const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
       if (existingUser) {
         const linked = await this.repo.findByUserId(existingUser.id);
@@ -157,8 +218,10 @@ export class StudentService {
       emergencyPhone: fields.emergencyPhone,
       profileImageUrl: fields.profileImageUrl,
       documentUrls: documentUrls ?? [],
+      roomNumber: resolvedRoomNumber,
       weeklyAmount: weeklyAmount != null ? weeklyAmount : 0,
-      room: roomId ? { connect: { id: roomId } } : undefined,
+      room: resolvedRoomId ? { connect: { id: resolvedRoomId } } : undefined,
+      group: resolvedGroupId ? { connect: { id: resolvedGroupId } } : undefined,
       user: userId ? { connect: { id: userId } } : undefined,
     });
 
@@ -183,15 +246,73 @@ export class StudentService {
       if (existing) throw AppError.conflict(`Student ID ${data.studentId} is already in use`);
     }
 
-    const { temporaryPassword: _pw, roomId, weeklyAmount, documentUrls, ...rest } = data;
+    const {
+      temporaryPassword: _pw,
+      roomId,
+      groupId,
+      roomNumber,
+      weeklyAmount,
+      documentUrls,
+      ...rest
+    } = data;
     const updateData: Prisma.StudentUpdateInput = { ...rest };
-    if (roomId !== undefined) {
+    delete (updateData as { temporaryPassword?: string }).temporaryPassword;
+    delete (updateData as { groupId?: string }).groupId;
+    delete (updateData as { roomNumber?: string }).roomNumber;
+    delete (updateData as { roomId?: string }).roomId;
+
+    const { prisma } = await import("@/lib/db/prisma");
+
+    if (groupId !== undefined) {
+      if (groupId) {
+        const group = await prisma.studentGroup.findFirst({
+          where: { id: groupId, deletedAt: null },
+        });
+        if (!group) throw AppError.notFound("Student group", groupId);
+        updateData.group = { connect: { id: groupId } };
+      } else {
+        updateData.group = { disconnect: true };
+      }
+    }
+
+    if (roomNumber !== undefined) {
+      updateData.roomNumber = roomNumber || null;
+      const gId = groupId ?? student.groupId;
+      if (roomNumber && gId) {
+        const group = await prisma.studentGroup.findFirst({
+          where: { id: gId, deletedAt: null },
+        });
+        if (group) {
+          const floorInt = Number.parseInt(group.floor, 10);
+          const room = await prisma.room.upsert({
+            where: {
+              hallId_number: { hallId: group.hallId, number: roomNumber },
+            },
+            update: {
+              block: group.block,
+              floor: Number.isFinite(floorInt) ? floorInt : undefined,
+              deletedAt: null,
+              isActive: true,
+            },
+            create: {
+              hallId: group.hallId,
+              number: roomNumber,
+              block: group.block,
+              floor: Number.isFinite(floorInt) ? floorInt : undefined,
+              capacity: 2,
+            },
+          });
+          updateData.room = { connect: { id: room.id } };
+        }
+      } else if (!roomNumber) {
+        updateData.room = { disconnect: true };
+      }
+    } else if (roomId !== undefined) {
       updateData.room = roomId ? { connect: { id: roomId } } : { disconnect: true };
     }
+
     if (weeklyAmount !== undefined) updateData.weeklyAmount = weeklyAmount;
     if (documentUrls !== undefined) updateData.documentUrls = documentUrls;
-    // Don't pass temporaryPassword into Prisma
-    delete (updateData as { temporaryPassword?: string }).temporaryPassword;
 
     return this.repo.update(id, updateData);
   }

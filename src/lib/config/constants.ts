@@ -25,13 +25,16 @@ export const RATE_LIMITS = {
 
 /**
  * OTP lifecycle — pro-style defaults (expiry + verify attempts + resend limits).
- * Aligns with Better Auth plugins + Arkesel OTP expiry (minutes).
+ *
+ * Arkesel OTP generate API hard-caps expiry at 1–10 minutes
+ * ("The expiry must be between 1 and 10."). Phone codes cannot be 30 min.
+ * Email OTP (Better Auth) can be longer if needed; we keep both at 10 for UX parity.
  */
 export const AUTH_OTP = {
   /** OTP digit length */
   LENGTH: 6,
-  /** How long a code remains valid */
-  EXPIRES_IN_SECONDS: 30 * 60, // 30 minutes
+  /** How long a code remains valid (must be ≤ 10 min for Arkesel SMS OTP) */
+  EXPIRES_IN_SECONDS: 10 * 60, // 10 minutes
   /** Wrong-code tries before the OTP is invalidated */
   ALLOWED_ATTEMPTS: 3,
   /** Minimum wait between resend requests for the same target */
@@ -66,8 +69,13 @@ export const ARKESEL = {
   },
   OTP: {
     LENGTH: 6,
-    /** Keep in sync with AUTH_OTP.EXPIRES_IN_SECONDS (minutes) */
-    EXPIRY_MINUTES: 30,
+    /**
+     * Arkesel API: expiry must be between 1 and 10 (minutes).
+     * Cap at 10 even if AUTH_OTP is higher.
+     */
+    EXPIRY_MINUTES: 10,
+    EXPIRY_MIN: 1,
+    EXPIRY_MAX: 10,
     TYPE: "numeric" as const,
     MEDIUM: "sms" as const,
   },

@@ -34,13 +34,20 @@ export async function sendOTP(
   const client = getArkeselClient();
   const number = toArkeselPhone(phoneNumber);
 
+  // Arkesel: "The expiry must be between 1 and 10."
+  const rawExpiry = options?.expiryMinutes ?? ARKESEL.OTP.EXPIRY_MINUTES;
+  const expiry = Math.min(
+    ARKESEL.OTP.EXPIRY_MAX,
+    Math.max(ARKESEL.OTP.EXPIRY_MIN, rawExpiry)
+  );
+
   const payload: ArkeselSendOtpRequest = {
-    expiry: options?.expiryMinutes ?? ARKESEL.OTP.EXPIRY_MINUTES,
+    expiry,
     length: options?.length ?? ARKESEL.OTP.LENGTH,
     medium: ARKESEL.OTP.MEDIUM,
     message:
       options?.message ??
-      `Your WeWash verification code is %otp_code%. It expires in ${options?.expiryMinutes ?? ARKESEL.OTP.EXPIRY_MINUTES} minutes.`,
+      `Your WeWash verification code is %otp_code%. It expires in ${expiry} minutes.`,
     number,
     sender_id: client.senderId,
     type: ARKESEL.OTP.TYPE,

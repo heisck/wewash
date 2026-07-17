@@ -21,7 +21,16 @@ export const createStudentSchema = z.object({
   secondaryPhone: ghanaPhoneSchema.optional(),
   whatsapp: ghanaPhoneSchema.optional(),
   email: emailSchema, // Required so admin can create login account
+  /** Prefer group + typed roomNumber; roomId still accepted for legacy */
   roomId: idSchema.optional(),
+  groupId: idSchema.optional(),
+  /** Free-typed room (e.g. "12B") — not selected from a list */
+  roomNumber: z
+    .string()
+    .min(1)
+    .max(40)
+    .transform((s) => s.trim())
+    .optional(),
   weeklyAmount: z.coerce.number().min(0).max(100_000).optional(),
   emergencyContact: z.string().max(200).optional(),
   emergencyPhone: ghanaPhoneSchema.optional(),
@@ -48,6 +57,7 @@ export const studentFilterSchema = z.object({
   search: z.string().optional(),
   roomId: idSchema.optional(),
   hallId: idSchema.optional(),
+  groupId: idSchema.optional(),
   isActive: z.coerce.boolean().optional(),
 });
 

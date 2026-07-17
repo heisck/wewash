@@ -18,7 +18,7 @@ export default function AdminForgotPasswordPage() {
       footer={
         <>
           <p className="max-w-[320px] text-[11px] font-semibold leading-normal text-teal-900/50 dark:text-teal-100/50">
-            Use the email or phone on your admin account. Codes last 30 minutes;
+            Use the email or phone on your admin account. Codes last 10 minutes;
             resend is available after 10 minutes.
           </p>
           <Link

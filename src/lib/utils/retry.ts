@@ -8,6 +8,8 @@ interface RetryOptions {
   maxDelayMs?: number;
   timeoutMs?: number;
   onRetry?: (error: Error, attempt: number) => void;
+  /** Return false to stop retrying (e.g. HTTP 422 validation errors). */
+  shouldRetry?: (error: Error) => boolean;
 }
 
 /**
@@ -31,6 +33,7 @@ export async function withRetry<T>(
     maxDelayMs = RETRY_POLICY.MAX_DELAY_MS,
     timeoutMs = RETRY_POLICY.REQUEST_TIMEOUT_MS,
     onRetry,
+    shouldRetry,
   } = options ?? {};
 
   let lastError: Error | undefined;
@@ -43,7 +46,11 @@ export async function withRetry<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      if (attempt < maxRetries) {
+      const canRetry =
+        attempt < maxRetries &&
+        (shouldRetry ? shouldRetry(lastError) : true);
+
+      if (canRetry) {
         const delay = Math.min(
           initialDelayMs * Math.pow(backoffMultiplier, attempt),
           maxDelayMs
@@ -56,6 +63,8 @@ export async function withRetry<T>(
 
         onRetry?.(lastError, attempt + 1);
         await sleep(delay);
+      } else {
+        break;
       }
     }
   }

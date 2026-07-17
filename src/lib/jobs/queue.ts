@@ -1,10 +1,17 @@
 import { Queue, QueueEvents } from "bullmq";
 import { env } from "@/lib/config/env";
+import { normalizeRedisUrl } from "@/lib/db/redis";
+
+const redisUrl = normalizeRedisUrl(env.REDIS_URL);
 
 const connection = {
-  url: env.REDIS_URL,
+  url: redisUrl,
   // Recommended settings for BullMQ
-  maxRetriesPerRequest: null,
+  maxRetriesPerRequest: null as null,
+  // Upstash requires TLS (rediss://)
+  ...(redisUrl.startsWith("rediss://")
+    ? { tls: { rejectUnauthorized: true } }
+    : {}),
 };
 
 // ─── Queue Definitions ───────────────────────────────────────

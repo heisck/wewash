@@ -17,8 +17,8 @@ export default function ForgotPasswordPage() {
       footer={
         <>
           <p className="max-w-[320px] text-[11px] font-semibold leading-normal text-teal-900/50 dark:text-teal-100/50">
-            Codes expire in 30 minutes. After 3 wrong tries you must request a new
-            code. You can resend only after 10 minutes.
+            Codes expire in 10 minutes (Arkesel SMS max). After 3 wrong tries you
+            must request a new code. Resend is available after 10 minutes.
           </p>
           <Link
             href="/login"

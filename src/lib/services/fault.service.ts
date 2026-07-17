@@ -63,7 +63,27 @@ export class FaultService {
       take,
       where,
       orderBy: { createdAt: "desc" },
-      include: { machine: true, reportedBy: true },
+      include: {
+        machine: {
+          select: {
+            id: true,
+            serialNumber: true,
+            name: true,
+            code: true,
+            status: true,
+          },
+        },
+        reportedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            studentId: true,
+            roomNumber: true,
+            room: { select: { number: true } },
+          },
+        },
+      },
     });
 
     return { data, total };

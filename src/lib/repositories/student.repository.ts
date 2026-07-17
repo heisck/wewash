@@ -8,7 +8,11 @@ export class StudentRepository extends BaseRepository {
   async findById(id: string): Promise<Student | null> {
     return this.db.student.findFirst({
       where: { id, deletedAt: null },
-      include: { room: { include: { hall: true } }, user: true },
+      include: {
+        room: { include: { hall: true } },
+        group: { include: { hall: true } },
+        user: true,
+      },
     });
   }
 
@@ -36,7 +40,10 @@ export class StudentRepository extends BaseRepository {
   async findByUserIdDetailed(userId: string) {
     return this.db.student.findFirst({
       where: { userId, deletedAt: null },
-      include: { room: { include: { hall: true } } },
+      include: {
+        room: { include: { hall: true } },
+        group: { include: { hall: true } },
+      },
     });
   }
 

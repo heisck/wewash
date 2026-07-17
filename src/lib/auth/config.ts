@@ -23,7 +23,11 @@ import { AppError, ErrorCode } from "@/lib/errors";
 
 const authLogger = logger.child({ service: "better-auth" });
 
-const OTP_EXPIRY_MINUTES = Math.ceil(AUTH_OTP.EXPIRES_IN_SECONDS / 60);
+/** Phone SMS via Arkesel is capped at 1–10 minutes. */
+const OTP_EXPIRY_MINUTES = Math.min(
+  10,
+  Math.max(1, Math.ceil(AUTH_OTP.EXPIRES_IN_SECONDS / 60))
+);
 
 /**
  * Better Auth server config (docs: https://www.better-auth.com/docs)

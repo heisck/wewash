@@ -212,13 +212,42 @@ model Hall {
   deletedAt   DateTime? // Soft delete
 
   // Relations
-  rooms       Room[]
-  machines    Machine[]
+  rooms          Room[]
+  machines       Machine[]
+  studentGroups  StudentGroup[]
 
   @@index([name])
   @@index([code])
   @@index([deletedAt])
   @@map("halls")
+}
+
+/**
+ * A cohort of students on the same hostel floor/block.
+ * Create groups after hostels exist; then add students to a group
+ * and type their room number (no room dropdown).
+ */
+model StudentGroup {
+  id          String   @id @default(cuid())
+  name        String // e.g. "Block A · Floor 2"
+  hallId      String
+  floor       String // "Ground", "1", "2"…
+  block       String // "A", "Block B"…
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  hall     Hall      @relation(fields: [hallId], references: [id], onDelete: Cascade)
+  students Student[]
+
+  @@unique([hallId, floor, block, name])
+  @@index([hallId])
+  @@index([floor])
+  @@index([block])
+  @@index([deletedAt])
+  @@map("student_groups")
 }
 
 model Room {
@@ -257,6 +286,9 @@ model Student {
   whatsapp        String?
   email           String?
   roomId          String?
+  /// Free-typed room label shown on roster (e.g. "12B"); Room row is upserted for schedules
+  roomNumber      String?
+  groupId         String?
   userId          String?  @unique
   weeklyAmount    Decimal  @default(0) @db.Decimal(10, 2) // Weekly subscription fee
   emergencyContact String?
@@ -271,6 +303,7 @@ model Student {
   // Relations
   user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   room          Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  group         StudentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   payments      Payment[]
   faultReports  FaultReport[]
   contracts     Contract[]
@@ -279,6 +312,7 @@ model Student {
 
   @@index([studentId])
   @@index([roomId])
+  @@index([groupId])
   @@index([userId])
   @@index([phone])
   @@index([deletedAt])
