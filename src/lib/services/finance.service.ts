@@ -12,8 +12,17 @@ import {
   UpdatePaymentInput,
 } from "@/lib/validators";
 import { PaginationInput, toSkipTake } from "@/lib/utils/pagination";
+import { startOfBillingWeek, rotationDayPassed } from "@/lib/utils/week";
+import {
+  money,
+  remainingDues,
+  isPaidInFull,
+  sumCompletedPaidThisWeek,
+  getStudentWeekDues,
+} from "./weekly-dues";
 import { auditLogService } from "./audit-log.service";
 import { notificationService } from "./notification.service";
+import type { DayOfWeek } from "@prisma/client";
 
 export class FinanceService {
   private readonly repo: FinanceRepository;
@@ -148,6 +157,122 @@ export class FinanceService {
   }
 
   // ─── Payment Operations ──────────────────────────────────────
+
+  /**
+   * Admin review board: pending student proofs (verify amount) + students still
+   * short of this week's assigned fee (partials allowed until sum >= weeklyAmount).
+   */
+  async getReviewBoard(user: User | null) {
+    requirePermission(user, "payments", "read");
+    if (user?.role === "STUDENT") {
+      throw AppError.forbidden("Admins only");
+    }
+
+    const weekStart = startOfBillingWeek();
+    const { prisma } = await import("@/lib/db/prisma");
+
+    const [pendingProofs, students] = await Promise.all([
+      this.repo.findManyPayments({
+        take: 100,
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "desc" },
+        include: {
+          student: { include: { room: { include: { hall: true } }, group: true } },
+        },
+      }),
+      prisma.student.findMany({
+        where: { deletedAt: null, isActive: true, weeklyAmount: { gt: 0 } },
+        select: {
+          id: true,
+          studentId: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          email: true,
+          weeklyAmount: true,
+          roomNumber: true,
+          userId: true,
+          room: {
+            select: {
+              id: true,
+              number: true,
+              hall: { select: { code: true, name: true } },
+              machineSchedules: {
+                where: { isActive: true },
+                select: { dayOfWeek: true },
+              },
+            },
+          },
+        },
+        orderBy: [{ roomNumber: "asc" }, { lastName: "asc" }],
+      }),
+    ]);
+
+    // Sum all COMPLETED pieces this week (not just "has any payment")
+    const paidMap = await sumCompletedPaidThisWeek(students.map((s) => s.id));
+
+    let paidInFullCount = 0;
+    const notFullyPaid = students
+      .map((s) => {
+        const weeklyAmount = money(s.weeklyAmount);
+        const paidThisWeek = paidMap.get(s.id) ?? 0;
+        const full = isPaidInFull(paidThisWeek, weeklyAmount);
+        if (full) paidInFullCount += 1;
+        const days = (s.room?.machineSchedules ?? []).map((ms) => ms.dayOfWeek as DayOfWeek);
+        return {
+          ...s,
+          weeklyAmount,
+          paidThisWeek,
+          remaining: remainingDues(paidThisWeek, weeklyAmount),
+          isPaidInFull: full,
+          rotationDayPassed: rotationDayPassed(days),
+          scheduleDays: days,
+        };
+      })
+      .filter((s) => !s.isPaidInFull)
+      .sort((a, b) => {
+        const ra = a.room?.number ?? a.roomNumber ?? "zzz";
+        const rb = b.room?.number ?? b.roomNumber ?? "zzz";
+        return String(ra).localeCompare(String(rb), undefined, { numeric: true });
+      });
+
+    const [pendingList] = pendingProofs;
+    const sortedPending = [...pendingList].sort((a, b) => {
+      const ra =
+        (a as { student?: { room?: { number?: string }; roomNumber?: string } }).student?.room
+          ?.number ??
+        (a as { student?: { roomNumber?: string } }).student?.roomNumber ??
+        "";
+      const rb =
+        (b as { student?: { room?: { number?: string } } }).student?.room?.number ??
+        (b as { student?: { roomNumber?: string } }).student?.roomNumber ??
+        "";
+      const t = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (t !== 0) return t;
+      return String(ra).localeCompare(String(rb), undefined, { numeric: true });
+    });
+
+    return {
+      weekStart: weekStart.toISOString(),
+      pendingProofs: sortedPending,
+      unpaidThisWeek: notFullyPaid,
+      counts: {
+        pending: sortedPending.length,
+        unpaid: notFullyPaid.length,
+        paid: paidInFullCount,
+      },
+    };
+  }
+
+  /** Student: this week's dues progress (pieces + full status). */
+  async getMyWeekDues(user: User | null) {
+    if (!user) throw AppError.unauthorized();
+    const studentId = await this.getStudentIdForUser(user);
+    if (!studentId) throw AppError.notFound("Student profile not found for user", user.id);
+    const student = await this.studentRepo.findById(studentId);
+    if (!student) throw AppError.notFound("Student", studentId);
+    return getStudentWeekDues(studentId, money(student.weeklyAmount));
+  }
 
   async getPayments(
     user: User | null,

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import {
@@ -72,10 +73,6 @@ export default function AdminStudents() {
     "admin/students:broadcastOpen",
     false
   );
-  const [payForId, setPayForId] = usePersistedState<string | null>(
-    "admin/students:payForId",
-    null
-  );
   /** Expand room key: `${groupId ?? "none"}::${roomKey}` */
   const [expandedRoomKey, setExpandedRoomKey] = usePersistedState<string | null>(
     "admin/students:expandedRoomKey",
@@ -86,10 +83,6 @@ export default function AdminStudents() {
 
   const list = students ?? [];
   const groupList = groups ?? [];
-
-  const payFor = payForId
-    ? list.find((s) => s.id === payForId) ?? null
-    : null;
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -486,16 +479,14 @@ export default function AdminStudents() {
                                           </PixelTd>
                                           <PixelTd className="text-right">
                                             <div className="flex justify-end gap-2">
-                                              <PixelButton
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() =>
-                                                  setPayForId(s.id)
-                                                }
+                                              <Link
+                                                href={`/admin/payments?studentId=${s.id}`}
+                                                title="Approve payment or manual scan for this student"
+                                                className="inline-flex h-8 items-center justify-center gap-1 border-2 border-teal-900/25 bg-transparent px-2 text-[10px] font-black uppercase tracking-widest text-teal-900 shadow-pixel-sm transition hover:bg-teal-600/10 dark:border-teal-100/25 dark:text-teal-100"
                                               >
-                                                <CreditCard className="h-3 w-3" />{" "}
-                                                Pay
-                                              </PixelButton>
+                                                <CreditCard className="h-3 w-3" />
+                                                Payments
+                                              </Link>
                                               <PixelButton
                                                 size="sm"
                                                 variant="ghost"
@@ -618,11 +609,6 @@ export default function AdminStudents() {
         open={groupOpen}
         onClose={() => setGroupOpen(false)}
         halls={halls ?? []}
-        onDone={reloadAll}
-      />
-      <PaymentDialog
-        student={payFor}
-        onClose={() => setPayForId(null)}
         onDone={reloadAll}
       />
       <BroadcastDialog
@@ -1016,111 +1002,6 @@ function RegisterDialog({
             </PixelButton>
             <PixelButton type="submit" disabled={saving || groups.length === 0}>
               {saving ? "Saving..." : "Create student account"}
-            </PixelButton>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PaymentDialog({
-  student,
-  onClose,
-  onDone,
-}: {
-  student: StudentDTO | null;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("MOBILE_MONEY");
-  const [reference, setReference] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!student) return;
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) return toast.error("Enter a valid amount.");
-    setSaving(true);
-    try {
-      await api.post("/api/v1/payments", {
-        studentId: student.id,
-        amount: amt,
-        amountPaid: amt,
-        amountDue:
-          student.weeklyAmount != null ? Number(student.weeklyAmount) : amt,
-        method,
-        reference: reference || undefined,
-      });
-      toast.success(
-        `GHS ${amt.toFixed(2)} recorded — ${student.firstName} notified.`
-      );
-      onDone();
-      onClose();
-      setAmount("");
-      setReference("");
-    } catch (err) {
-      toast.error((err as ApiError).message || "Could not record payment.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={student !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
-        <DialogHeader>
-          <DialogTitle className="font-black uppercase tracking-wider">
-            Record payment
-          </DialogTitle>
-          <DialogDescription>
-            Payment from{" "}
-            <strong>
-              {student?.firstName} {student?.lastName}
-            </strong>
-            .
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4 py-2">
-          <div className="space-y-2">
-            <PixelLabel htmlFor="amount">Amount paid (GHS)</PixelLabel>
-            <PixelInput
-              id="amount"
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <PixelLabel htmlFor="method">Method</PixelLabel>
-            <PixelSelect
-              id="method"
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-            >
-              <option value="MOBILE_MONEY">Mobile Money</option>
-              <option value="CASH">Cash</option>
-              <option value="BANK_TRANSFER">Bank transfer</option>
-            </PixelSelect>
-          </div>
-          <div className="space-y-2">
-            <PixelLabel htmlFor="ref">Reference</PixelLabel>
-            <PixelInput
-              id="ref"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-            />
-          </div>
-          <DialogFooter className="gap-2 pt-4">
-            <PixelButton type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </PixelButton>
-            <PixelButton type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Record payment"}
             </PixelButton>
           </DialogFooter>
         </form>

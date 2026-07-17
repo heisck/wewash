@@ -7,18 +7,47 @@ import { successResponse, createdResponse } from "@/lib/utils/api-response";
 import { handleApiError, AppError } from "@/lib/errors";
 import { withRateLimit } from "@/lib/middleware/rate-limit.middleware";
 
-const scanSchema = z.object({ qrToken: z.string().min(1) });
+const scanSchema = z
+  .object({
+    /** Student self-scan: opaque token from printed QR URL. */
+    qrToken: z.string().min(1).optional(),
+    /** Admin manual scan: claim machine for a student. */
+    studentId: z.string().min(1).optional(),
+    machineId: z.string().min(1).optional(),
+  })
+  .superRefine((v, ctx) => {
+    const selfScan = !!v.qrToken;
+    const adminScan = !!v.studentId && !!v.machineId;
+    if (!selfScan && !adminScan) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide qrToken, or studentId + machineId for admin manual scan",
+      });
+    }
+  });
 
-/** POST /api/v1/scan — record a machine scan → creates/returns a WashSession. */
+/**
+ * POST /api/v1/scan
+ * - Student: { qrToken } from machine QR
+ * - Admin: { studentId, machineId } manual claim for that student
+ */
 async function postHandler(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) throw AppError.unauthorized();
 
     const body = await req.json().catch(() => ({}));
-    const { qrToken } = scanSchema.parse(body);
+    const input = scanSchema.parse(body);
 
-    const result = await scanService.scan(session.user, qrToken);
+    if (input.qrToken) {
+      const result = await scanService.scan(session.user, input.qrToken);
+      return createdResponse(result);
+    }
+
+    const result = await scanService.adminScanForStudent(session.user, {
+      studentId: input.studentId!,
+      machineId: input.machineId!,
+    });
     return createdResponse(result);
   } catch (error) {
     return handleApiError(error);

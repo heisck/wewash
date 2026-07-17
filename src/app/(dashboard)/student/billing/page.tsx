@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CreditCard, Calendar, CheckCircle, Upload, ImageIcon } from "lucide-react";
 import {
-  PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel, PixelSelect,
+  PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel,
   PixelTd, PixelTh, SectionTitle, StatTile,
 } from "@/components/pixel/pixel-ui";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { MeResponse, PaymentDTO } from "@/lib/types/client";
+import type { MeResponse, PaymentDTO, WeekDuesStatus } from "@/lib/types/client";
 
 const cedis = (n: string | number) => {
   const v = typeof n === "string" ? Number(n) : n;
@@ -24,56 +24,89 @@ function statusTone(status: PaymentDTO["status"]) {
 
 export default function BillingPage() {
   const { data: me } = useApi<MeResponse>("/api/v1/me");
+  const { data: dues, reload: reloadDues } = useApi<WeekDuesStatus>("/api/v1/me/dues");
   const { data: payments, reload, loading } = useApi<PaymentDTO[]>("/api/v1/payments?limit=50");
   const list = payments ?? [];
-  const weekly = Number(me?.student?.weeklyAmount ?? 0);
+  const weekly = dues?.weeklyAmount ?? Number(me?.student?.weeklyAmount ?? 0);
+  const paidWeek = dues?.paidThisWeek ?? 0;
+  const remaining = dues?.remaining ?? Math.max(0, weekly - paidWeek);
+  const full = dues?.isPaidInFull ?? (weekly <= 0 || paidWeek >= weekly);
 
   const totals = useMemo(() => {
-    let paid = 0;
+    let paidAll = 0;
     let pending = 0;
     for (const p of list) {
       const amt = Number(p.amountPaid ?? p.amount ?? 0);
-      if (p.status === "COMPLETED") paid += amt;
+      if (p.status === "COMPLETED") paidAll += amt;
       if (p.status === "PENDING") pending += amt;
     }
-    return { paid, pending };
+    return { paidAll, pending };
   }, [list]);
+
+  const refresh = () => {
+    reload();
+    reloadDues();
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageTitle
           text="PAYMENTS"
-          sub="Pay off-app, upload proof — admin confirms"
+          sub="Weekly dues · pay in pieces or full · admin confirms each proof"
         />
+        {full ? (
+          <PixelBadge tone="green">PAID IN FULL THIS WEEK</PixelBadge>
+        ) : (
+          <PixelBadge tone="amber">BALANCE DUE THIS WEEK</PixelBadge>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
-          label="Weekly rate"
+          label="Weekly fee"
           value={cedis(weekly)}
-          sub="Set by hall admin"
+          sub="Set by admin at registration"
           icon={<CreditCard />}
         />
         <StatTile
-          label="Confirmed paid"
-          value={cedis(totals.paid)}
-          sub="Completed proofs"
+          label="Paid this week"
+          value={cedis(paidWeek)}
+          sub={full ? "Full — overpay OK" : "Confirmed pieces only"}
           icon={<CheckCircle />}
         />
         <StatTile
-          label="Awaiting review"
-          value={cedis(totals.pending)}
-          sub={totals.pending > 0 ? "Admin will verify" : "None pending"}
+          label="Remaining this week"
+          value={cedis(remaining)}
+          sub={full ? "Nothing left" : "Until full"}
           icon={<Calendar />}
+        />
+        <StatTile
+          label="Total confirmed (all time)"
+          value={cedis(totals.paidAll)}
+          sub={
+            totals.pending > 0
+              ? `${cedis(totals.pending)} awaiting review`
+              : "All proofs settled"
+          }
+          icon={<CheckCircle />}
         />
       </div>
 
+      {!full && (
+        <PixelCard className="border-2 border-amber-500/40 bg-amber-500/5 p-4">
+          <p className="text-xs font-bold text-teal-950 dark:text-teal-50">
+            This week’s fee is <span className="font-black">{cedis(weekly)}</span>. You can pay
+            in pieces — each confirmed amount adds up. When the total reaches the fee (or more),
+            you show as <span className="font-black">paid in full</span>.
+          </p>
+        </PixelCard>
+      )}
+
       <SubmitProofCard
         weekly={weekly}
-        onDone={() => {
-          reload();
-        }}
+        remaining={remaining}
+        onDone={refresh}
       />
 
       <div className="space-y-4">
@@ -147,14 +180,25 @@ export default function BillingPage() {
   );
 }
 
-function SubmitProofCard({ weekly, onDone }: { weekly: number; onDone: () => void }) {
-  const [amount, setAmount] = useState(weekly > 0 ? String(weekly) : "");
-  const [method, setMethod] = useState("MOBILE_MONEY");
-  const [reference, setReference] = useState("");
+function SubmitProofCard({
+  weekly,
+  remaining,
+  onDone,
+}: {
+  weekly: number;
+  remaining: number;
+  onDone: () => void;
+}) {
+  const [amount, setAmount] = useState("");
   const [receiptUrl, setReceiptUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (remaining > 0) setAmount(String(remaining));
+    else if (weekly > 0) setAmount(String(weekly));
+  }, [remaining, weekly]);
 
   const onFile = async (file: File | null) => {
     if (!file) return;
@@ -192,14 +236,13 @@ function SubmitProofCard({ weekly, onDone }: { weekly: number; onDone: () => voi
       await api.post("/api/v1/payments", {
         amountPaid: Number(amount),
         amount: Number(amount),
-        method,
-        reference: reference || undefined,
+        amountDue: weekly || Number(amount),
+        method: "OTHER",
         receiptUrl,
         notes: notes || undefined,
         status: "PENDING",
       });
-      toast.success("Proof submitted. Admin will confirm the amount.");
-      setReference("");
+      toast.success("Proof submitted. After admin confirms, it counts toward this week.");
       setNotes("");
       setReceiptUrl("");
       onDone();
@@ -214,8 +257,8 @@ function SubmitProofCard({ weekly, onDone }: { weekly: number; onDone: () => voi
     <PixelCard className="p-5 sm:p-6">
       <SectionTitle text="SUBMIT PAYMENT PROOF" />
       <p className="mt-2 max-w-2xl text-xs leading-relaxed text-teal-900/60 dark:text-teal-100/60">
-        Pay off-app (MoMo, bank, crypto P2P, etc.), then upload a screenshot and the amount
-        you paid. Access and push rotation alerts unlock after an admin confirms.
+        Pay any amount toward this week’s fee (full or partial). Admin confirms each screenshot;
+        confirmed amounts add up until you reach the weekly fee.
       </p>
       <form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -229,33 +272,19 @@ function SubmitProofCard({ weekly, onDone }: { weekly: number; onDone: () => voi
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+          {remaining > 0 && (
+            <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40">
+              Remaining this week: {cedis(remaining)}
+            </p>
+          )}
         </div>
         <div className="space-y-2">
-          <PixelLabel htmlFor="method">How you paid</PixelLabel>
-          <PixelSelect id="method" value={method} onChange={(e) => setMethod(e.target.value)}>
-            <option value="MOBILE_MONEY">Mobile Money</option>
-            <option value="BANK_TRANSFER">Bank transfer</option>
-            <option value="CASH">Cash</option>
-            <option value="CARD">Card</option>
-            <option value="OTHER">Other / crypto P2P</option>
-          </PixelSelect>
-        </div>
-        <div className="space-y-2">
-          <PixelLabel htmlFor="ref">Transaction reference (optional)</PixelLabel>
-          <PixelInput
-            id="ref"
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            placeholder="MoMo ID / Txn hash"
-          />
-        </div>
-        <div className="space-y-2">
-          <PixelLabel htmlFor="notes">Notes (optional)</PixelLabel>
+          <PixelLabel htmlFor="notes">Note (optional)</PixelLabel>
           <PixelInput
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. Binance P2P to +233…"
+            placeholder="e.g. partial · MoMo name"
           />
         </div>
         <div className="space-y-2 sm:col-span-2">

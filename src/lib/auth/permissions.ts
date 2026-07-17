@@ -50,7 +50,8 @@ export const rolePermissions: Permissions = {
     schedules: ["create", "read", "update", "delete"],
     system_config: ["read", "update"], // Admins can edit contact/WhatsApp config
     notifications: ["create", "read"],  // Can broadcast notifications
-    wash_sessions: ["read"],
+    // Admins can claim a machine for a student (manual scan on behalf).
+    wash_sessions: ["create", "read", "update"],
   },
   STUDENT: {
     "*": [],

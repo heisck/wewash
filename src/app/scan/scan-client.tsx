@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ScanLine, CheckCircle2, Clock, MapPin, ArrowLeft } from "lucide-react";
+import { ScanLine, CheckCircle2, Clock, MapPin, ArrowLeft, WashingMachine } from "lucide-react";
 import { QrScanner, extractQrToken } from "@/components/scan/qr-scanner";
 import { api, ApiError } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/client";
@@ -12,9 +12,18 @@ import { PixelButton, PixelCard } from "@/components/pixel/pixel-ui";
 import type { ScanResult } from "@/lib/types/client";
 import { useCountdown } from "@/hooks/use-countdown";
 
+type MachinePeek = {
+  id: string;
+  serialNumber: string;
+  name?: string | null;
+  code?: string | null;
+  label: string;
+  hall?: { code: string; name: string } | null;
+};
+
 /**
- * Shared scan experience. If `token` is provided (deep-link from a printed QR),
- * it's submitted immediately; otherwise the live camera scanner opens.
+ * Scan experience. Printed QR opens /scan/{token} on the WeWash site.
+ * After login, records: this student has this machine in their room.
  */
 export function ScanClient({ token }: { token?: string }) {
   const router = useRouter();
@@ -23,7 +32,28 @@ export function ScanClient({ token }: { token?: string }) {
     token ? "submitting" : "scan"
   );
   const [result, setResult] = React.useState<ScanResult | null>(null);
+  const [peek, setPeek] = React.useState<MachinePeek | null>(null);
   const submittedRef = React.useRef(false);
+
+  // Load machine identity from token (public) so the page shows which unit.
+  React.useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/v1/public/machine-qr/${encodeURIComponent(token)}`, {
+          credentials: "same-origin",
+        });
+        const json = await res.json();
+        if (!cancelled && json?.success && json.data) setPeek(json.data as MachinePeek);
+      } catch {
+        /* ignore — scan can still work */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const submit = React.useCallback(
     async (rawToken: string) => {
@@ -35,7 +65,7 @@ export function ScanClient({ token }: { token?: string }) {
         const res = await api.post<ScanResult>("/api/v1/scan", { qrToken });
         setResult(res);
         setPhase("done");
-        toast.success("Machine is in your hands!");
+        toast.success(res.message || "Machine is in your hands!");
       } catch (e) {
         submittedRef.current = false;
         const err = e as ApiError;
@@ -45,13 +75,15 @@ export function ScanClient({ token }: { token?: string }) {
           return;
         }
         toast.error(err.message || "Could not register that scan.");
-        setPhase("scan");
+        setPhase(token ? "submitting" : "scan");
+        // Allow retry for deep-link after error
+        if (token) setPhase("scan");
       }
     },
     [router, token]
   );
 
-  // Deep-link: submit the token once the session is known.
+  // Deep-link: submit once session is known.
   React.useEffect(() => {
     if (token && !isPending) {
       if (!session) {
@@ -61,6 +93,13 @@ export function ScanClient({ token }: { token?: string }) {
       submit(token);
     }
   }, [token, isPending, session, submit, router]);
+
+  const machineTitle =
+    result?.machine &&
+    ((result.machine as { label?: string }).label ||
+      result.machine.code ||
+      result.machine.name ||
+      result.machine.serialNumber);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f0fdfc] to-[#96DED1] px-4 py-8 dark:from-[#0f2d2b] dark:to-[#04100f]">
@@ -73,9 +112,34 @@ export function ScanClient({ token }: { token?: string }) {
             <ArrowLeft className="h-3.5 w-3.5" /> Dashboard
           </Link>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">
-            <ScanLine className="h-3.5 w-3.5" /> Scan machine
+            <ScanLine className="h-3.5 w-3.5" /> WeWash scan
           </span>
         </div>
+
+        {/* Always show which machine when we know it */}
+        {(peek || machineTitle) && phase !== "done" && (
+          <PixelCard className="mb-4 flex items-center gap-3 p-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-teal-900/25 bg-teal-600 text-white">
+              <WashingMachine className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/45">
+                Machine
+              </p>
+              <p className="truncate text-sm font-black uppercase tracking-wide text-teal-950 dark:text-white">
+                {peek?.label || machineTitle}
+              </p>
+              {peek?.serialNumber && peek.label !== peek.serialNumber && (
+                <p className="text-[10px] font-mono text-teal-900/50">{peek.serialNumber}</p>
+              )}
+              {peek?.hall?.code && (
+                <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40">
+                  {peek.hall.name || peek.hall.code}
+                </p>
+              )}
+            </div>
+          </PixelCard>
+        )}
 
         {phase !== "done" ? (
           <PixelCard bolts className="p-5">
@@ -83,15 +147,31 @@ export function ScanClient({ token }: { token?: string }) {
               <div className="flex flex-col items-center gap-3 py-16">
                 <img src="/favicon.ico" alt="" className="h-10 w-10 animate-pulse" />
                 <p className="text-[11px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">
-                  Registering scan…
+                  Claiming machine…
+                </p>
+                <p className="max-w-xs text-center text-[10px] font-semibold text-teal-900/50">
+                  Linking this unit to you and your room
                 </p>
               </div>
             ) : (
               <>
                 <QrScanner onResult={submit} />
                 <p className="mt-4 text-center text-[11px] font-semibold leading-relaxed text-teal-900/60 dark:text-teal-100/60">
-                  Point your camera at the QR sticker on the washing machine.
+                  {token
+                    ? "Sign in was required — try scanning again or wait for auto-claim."
+                    : "Point your camera at the QR sticker on the washing machine."}
                 </p>
+                {token && (
+                  <PixelButton
+                    className="mt-4 w-full"
+                    onClick={() => {
+                      submittedRef.current = false;
+                      void submit(token);
+                    }}
+                  >
+                    Claim this machine
+                  </PixelButton>
+                )}
               </>
             )}
           </PixelCard>
@@ -106,6 +186,15 @@ export function ScanClient({ token }: { token?: string }) {
 function ScanResultView({ result }: { result: ScanResult }) {
   const { label } = useCountdown(result.session.dueBackAt);
   const late = result.session.minutesLate ?? 0;
+  const machineLabel =
+    (result.machine as { label?: string }).label ||
+    result.machine.code ||
+    result.machine.name ||
+    result.machine.serialNumber;
+  const studentName = (result as ScanResult & {
+    student?: { firstName: string; lastName: string };
+  }).student;
+  const message = (result as ScanResult & { message?: string }).message;
 
   return (
     <PixelCard bolts className="p-6 text-center">
@@ -113,26 +202,37 @@ function ScanResultView({ result }: { result: ScanResult }) {
         <CheckCircle2 className="h-7 w-7" />
       </div>
       <h1 className="text-lg font-black uppercase tracking-wide text-teal-950 dark:text-teal-50">
-        It&apos;s all yours
+        Machine claimed
       </h1>
       <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">
-        {result.machine.serialNumber}
+        {machineLabel}
       </p>
+      {message && (
+        <p className="mt-2 text-xs font-semibold text-teal-900/70 dark:text-teal-100/70">
+          {message}
+        </p>
+      )}
 
       <div className="mt-5 grid grid-cols-2 gap-3 text-left">
         <Stat
           icon={<MapPin className="h-4 w-4" />}
-          label="Location"
+          label="Your room"
           value={result.room ? `Room ${result.room.number}` : "—"}
           sub={result.hall?.code}
         />
         <Stat
           icon={<Clock className="h-4 w-4" />}
-          label="Moves in"
+          label="Handoff in"
           value={label}
           sub="until next room"
         />
       </div>
+
+      {studentName && (
+        <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-teal-900/45">
+          Scanned by {studentName.firstName} {studentName.lastName}
+        </p>
+      )}
 
       <div
         className={`mt-4 border-2 px-4 py-3 text-[11px] font-black uppercase tracking-widest ${
@@ -142,8 +242,8 @@ function ScanResultView({ result }: { result: ScanResult }) {
         }`}
       >
         {late > 0
-          ? `You picked it up ${formatMins(late)} into your window`
-          : "Right on time — nice one"}
+          ? `Picked up ${formatMins(late)} into the rotation window`
+          : "Recorded on the system — machine is with you"}
       </div>
 
       <Link href="/student" className="mt-6 block">
@@ -173,7 +273,11 @@ function Stat({
         <span className="text-[8px] font-black uppercase tracking-[0.2em]">{label}</span>
       </div>
       <p className="mt-1.5 text-sm font-black text-teal-950 dark:text-teal-50">{value}</p>
-      {sub && <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">{sub}</p>}
+      {sub && (
+        <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">
+          {sub}
+        </p>
+      )}
     </div>
   );
 }

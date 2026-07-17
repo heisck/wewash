@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { assertCron } from "@/lib/cron/guard";
 import { notificationService } from "@/lib/services/notification.service";
 import { nextOccurrence } from "@/lib/services/rotation.service";
+import { money, isPaidInFull, sumCompletedPaidThisWeek } from "@/lib/services/weekly-dues";
 import { successResponse } from "@/lib/utils/api-response";
 import { handleApiError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -10,16 +11,11 @@ import { logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 /**
- * Paid students get free PWA push at 24h / 12h / 6h before handoff.
- * Everyone gets one SMS ~2 hours before (the critical, low-volume channel).
- *
- * Requires hourly cron so each ±0.5h window can fire once.
- * Vercel: schedule "7 * * * *" on /api/cron/rotation-reminders
+ * Paid-in-full this week (sum COMPLETED >= weeklyAmount) get free PWA push at
+ * 24h / 12h / 6h. Everyone still gets one SMS ~2 hours before handoff.
  */
 const PUSH_WINDOWS_HOURS = [24, 12, 6] as const;
 const SMS_WINDOW_HOURS = 2;
-/** Recent COMPLETED payment counts as "paid" for push entitlement. */
-const PAID_LOOKBACK_DAYS = 14;
 
 function inHourWindow(hoursUntil: number, target: number, halfWidth = 0.5): boolean {
   return hoursUntil > target - halfWidth && hoursUntil <= target + halfWidth;
@@ -29,7 +25,6 @@ export async function GET(req: NextRequest) {
   try {
     assertCron(req);
     const now = new Date();
-    const paidSince = new Date(now.getTime() - PAID_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
     const schedules = await prisma.machineSchedule.findMany({
       where: { isActive: true },
@@ -56,20 +51,7 @@ export async function GET(req: NextRequest) {
     const allStudentIds = [
       ...new Set(schedules.flatMap((s) => s.room.students.map((st) => st.id))),
     ];
-
-    const paidRows =
-      allStudentIds.length === 0
-        ? []
-        : await prisma.payment.findMany({
-            where: {
-              studentId: { in: allStudentIds },
-              status: "COMPLETED",
-              OR: [{ paidAt: { gte: paidSince } }, { updatedAt: { gte: paidSince } }],
-            },
-            select: { studentId: true },
-            distinct: ["studentId"],
-          });
-    const paidIds = new Set(paidRows.map((p) => p.studentId));
+    const paidMap = await sumCompletedPaidThisWeek(allStudentIds, now);
 
     const counts = { push24: 0, push12: 0, push6: 0, sms2h: 0 };
 
@@ -82,11 +64,12 @@ export async function GET(req: NextRequest) {
       const place = `Room ${s.room.number}${s.room.hall ? `, ${s.room.hall.code}` : ""}`;
       const timeLabel = s.startTime;
 
-      // Paid (or free weeklyAmount=0) + has userId → push for early windows
+      // Early push only if paid in full this week (or free weeklyAmount = 0)
       const pushEligible = students.filter((st) => {
         if (!st.userId) return false;
-        const fee = Number(st.weeklyAmount ?? 0);
-        return fee <= 0 || paidIds.has(st.id);
+        const due = money(st.weeklyAmount);
+        const paid = paidMap.get(st.id) ?? 0;
+        return isPaidInFull(paid, due);
       });
 
       for (const window of PUSH_WINDOWS_HOURS) {
@@ -116,7 +99,7 @@ export async function GET(req: NextRequest) {
         if (window === 6) counts.push6 += pushEligible.length;
       }
 
-      // Critical SMS for everyone with a phone (~2h before only)
+      // Critical SMS for everyone with a phone (~2h)
       if (inHourWindow(hoursUntil, SMS_WINDOW_HOURS)) {
         const phones = [...new Set(students.map((st) => st.phone).filter(Boolean))];
         if (phones.length) {
@@ -126,7 +109,6 @@ export async function GET(req: NextRequest) {
             title: "Machine arriving soon",
             body: `WeWash: machine reaches ${place} at ${timeLabel} (about 2 hours). Get laundry ready!`,
             url: "/student",
-            // SMS for all; push only reaches subscribers (paid already got earlier pushes)
             channels: ["SMS", "PUSH"],
           });
           counts.sms2h += phones.length;

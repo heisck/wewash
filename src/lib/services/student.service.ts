@@ -75,6 +75,78 @@ export class StudentService {
   }
 
   /**
+   * Student self-update: name/phone + notification prefs on User; first/last on Student.
+   */
+  async updateMySettings(
+    user: User | null,
+    data: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      notifySms?: boolean;
+      notifyEmail?: boolean;
+    }
+  ) {
+    if (!user) throw AppError.unauthorized("Not signed in");
+    const { prisma } = await import("@/lib/db/prisma");
+
+    const student = await this.repo.findByUserId(user.id);
+
+    const userUpdate: {
+      name?: string;
+      phone?: string;
+      phoneNumber?: string;
+      notifySms?: boolean;
+      notifyEmail?: boolean;
+    } = {};
+
+    if (data.notifySms !== undefined) userUpdate.notifySms = data.notifySms;
+    if (data.notifyEmail !== undefined) userUpdate.notifyEmail = data.notifyEmail;
+    if (data.phone !== undefined) {
+      userUpdate.phone = data.phone;
+      userUpdate.phoneNumber = data.phone;
+    }
+
+    let firstName = data.firstName;
+    let lastName = data.lastName;
+    if (student && (firstName !== undefined || lastName !== undefined)) {
+      firstName = firstName ?? student.firstName;
+      lastName = lastName ?? student.lastName;
+      userUpdate.name = `${firstName} ${lastName}`.trim();
+      await this.repo.update(student.id, {
+        firstName,
+        lastName,
+        ...(data.phone !== undefined ? { phone: data.phone } : {}),
+      });
+    } else if (firstName !== undefined || lastName !== undefined) {
+      const parts = (user.name || "").split(/\s+/);
+      const f = firstName ?? parts[0] ?? "";
+      const l = lastName ?? parts.slice(1).join(" ") ?? "";
+      userUpdate.name = `${f} ${l}`.trim();
+    }
+
+    if (Object.keys(userUpdate).length) {
+      await prisma.user.update({ where: { id: user.id }, data: userUpdate });
+    }
+
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        image: true,
+        notifySms: true,
+        notifyEmail: true,
+      },
+    });
+    const updatedStudent = await this.repo.findByUserIdDetailed(user.id);
+    return { user: updatedUser, student: updatedStudent };
+  }
+
+  /**
    * Self-onboarding is disabled. Student accounts are created only by admins.
    */
   async onboardSelf(

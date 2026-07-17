@@ -317,24 +317,56 @@ function ConfigDialog({
 
 function QrDialog({ machine, onClose }: { machine: MachineDTO | null; onClose: () => void }) {
   const qrUrl = machine ? `/api/v1/machines/${machine.id}/qr` : "";
-  const label = machine?.code || machine?.serialNumber;
+  const label = machine?.code || machine?.name || machine?.serialNumber;
+  const appBase =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || "";
+  // QR image encodes NEXT_PUBLIC_APP_URL/scan/{token}; show that path for printing.
+  const opensPath = "/scan/…";
+
   return (
     <Dialog open={machine !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
         <DialogHeader>
-          <DialogTitle className="font-black uppercase tracking-wider">Machine QR</DialogTitle>
+          <DialogTitle className="font-black uppercase tracking-wider">
+            Machine QR · {label}
+          </DialogTitle>
           <DialogDescription>
-            Students scan this after connecting water, drainage, power, and locking the base.
+            Print and stick on the machine. Scan opens the WeWash site, shows this unit, and
+            records which student (and room) has it.
           </DialogDescription>
         </DialogHeader>
         {machine && (
           <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-full border-2 border-teal-900/15 bg-teal-600/5 p-3 text-center dark:border-teal-100/15">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">
+                Machine
+              </p>
+              <p className="text-base font-black uppercase text-teal-950 dark:text-white">
+                {label}
+              </p>
+              {machine.serialNumber && machine.serialNumber !== label && (
+                <p className="font-mono text-[10px] text-teal-900/50">{machine.serialNumber}</p>
+              )}
+            </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrUrl}
               alt={`QR code for ${label}`}
               className="h-56 w-56 border-2 border-teal-900/20 bg-white"
             />
+            <p className="max-w-xs text-center text-[10px] font-semibold leading-relaxed text-teal-900/55 dark:text-teal-100/55">
+              Opens your WeWash website
+              {appBase ? (
+                <>
+                  {" "}
+                  (<span className="font-mono text-[9px]">{appBase}{opensPath}</span>)
+                </>
+              ) : null}
+              . Set <span className="font-mono">NEXT_PUBLIC_APP_URL</span> in production so the
+              printed code never points at localhost.
+            </p>
             <a href={qrUrl} download={`${label}-qr.png`}>
               <PixelButton size="sm" variant="outline">
                 <Download className="h-3 w-3" /> Download PNG

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Bell, Mail, MessageSquare, Camera, Building, ChevronDown,
@@ -9,21 +9,83 @@ import {
   PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelToggle,
 } from "@/components/pixel/pixel-ui";
 import { usePush } from "@/hooks/use-push";
+import { api, useApi, ApiError } from "@/lib/api/client";
+import type { MeResponse } from "@/lib/types/client";
 
 export default function SettingsPage() {
-  const [smsNotif, setSmsNotif] = useState(true);
-  const [emailNotif, setEmailNotif] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
+  const { data: me, reload } = useApi<MeResponse>("/api/v1/me");
+  const [notifOpen, setNotifOpen] = useState(true);
   const [contractOpen, setContractOpen] = useState(false);
   const { supported, subscribed, busy, subscribe, unsubscribe } = usePush();
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [smsNotif, setSmsNotif] = useState(true);
+  const [emailNotif, setEmailNotif] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!me) return;
+    if (me.student) {
+      setFirstName(me.student.firstName);
+      setLastName(me.student.lastName);
+      setPhone(me.student.phone || me.user.phone || "");
+    } else {
+      const parts = (me.user.name || "").split(/\s+/);
+      setFirstName(parts[0] || "");
+      setLastName(parts.slice(1).join(" ") || "");
+      setPhone(me.user.phone || "");
+    }
+    setSmsNotif(me.user.notifySms !== false);
+    setEmailNotif(!!me.user.notifyEmail);
+  }, [me]);
+
+  const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase() || "??";
+  const roomLabel = me?.student?.room?.number
+    ? `Room ${me.student.room.number}`
+    : me?.student?.roomNumber
+      ? `Room ${me.student.roomNumber}`
+      : "No room";
+  const hallLabel = me?.student?.room?.hall?.name || me?.student?.group?.hall?.name || "";
+  const weekly = Number(me?.student?.weeklyAmount ?? 0);
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      await api.patch("/api/v1/me", {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone.trim(),
+        notifySms: smsNotif,
+        notifyEmail: emailNotif,
+      });
+      toast.success("Settings saved.");
+      reload();
+    } catch (err) {
+      toast.error((err as ApiError).message || "Could not save settings.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePref = async (patch: { notifySms?: boolean; notifyEmail?: boolean }) => {
+    try {
+      await api.patch("/api/v1/me", patch);
+      if (patch.notifySms !== undefined) setSmsNotif(patch.notifySms);
+      if (patch.notifyEmail !== undefined) setEmailNotif(patch.notifyEmail);
+      toast.success("Preference saved.");
+      reload();
+    } catch (err) {
+      toast.error((err as ApiError).message || "Could not update preference.");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 pb-12">
       <PageTitle text="SETTINGS" sub="Profile, alerts & contract" />
 
-      {/* ─── Profile banner ─── */}
       <PixelCard bolts className="overflow-hidden">
-        {/* Cover: teal pixel gradient with checker texture */}
         <div className="bg-pixel-checker relative h-28 border-b-2 border-teal-900/25 bg-gradient-to-r from-teal-600 to-teal-800 dark:border-teal-100/20 sm:h-36">
           <button
             type="button"
@@ -35,71 +97,72 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* Avatar + name */}
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:p-6">
           <div className="relative -mt-14 w-fit sm:-mt-16">
             <span className="flex h-20 w-20 items-center justify-center border-2 border-teal-950/70 bg-teal-400 text-xl font-black tracking-widest text-teal-950 shadow-pixel sm:h-24 sm:w-24 sm:text-2xl">
-              JD
+              {initials}
             </span>
-            <button
-              type="button"
-              onClick={() => toast.info("Avatar upload coming soon.")}
-              aria-label="Change avatar"
-              className="absolute -bottom-2 -right-2 flex h-7 w-7 cursor-pointer items-center justify-center border-2 border-teal-950/70 bg-teal-600 text-white shadow-pixel-sm transition-colors hover:bg-teal-500"
-            >
-              <Camera className="h-3 w-3" />
-            </button>
           </div>
           <div className="flex-1">
             <p className="text-base font-black uppercase tracking-wider text-teal-950 dark:text-white">
-              John Doe
+              {firstName} {lastName}
             </p>
             <p className="text-[10px] font-black uppercase tracking-widest text-teal-900/50 dark:text-teal-100/50">
-              Room 104 - Atlantic Hall - STU-2026-0104
+              {roomLabel}
+              {hallLabel ? ` · ${hallLabel}` : ""}
+              {me?.student?.studentId ? ` · ${me.student.studentId}` : ""}
             </p>
           </div>
-          <PixelButton size="sm" onClick={() => toast.success("Profile saved.")}>
-            Save changes
+          <PixelButton size="sm" onClick={saveProfile} disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
           </PixelButton>
         </div>
       </PixelCard>
 
-      {/* ─── Profile fields ─── */}
       <PixelCard className="divide-y-2 divide-teal-900/10 p-5 dark:divide-teal-100/10 sm:p-6">
         <FormRow label="Full name">
           <div className="flex w-full gap-3">
-            <PixelInput defaultValue="John" className="flex-1" aria-label="First name" />
-            <PixelInput defaultValue="Doe" className="flex-1" aria-label="Last name" />
+            <PixelInput
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="flex-1"
+              aria-label="First name"
+            />
+            <PixelInput
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="flex-1"
+              aria-label="Last name"
+            />
           </div>
         </FormRow>
 
-        <FormRow label="Email address">
-          <PixelInput type="email" defaultValue="john.doe@uni.edu.gh" />
+        <FormRow label="Email address" sublabel="Login email — contact admin to change.">
+          <PixelInput type="email" value={me?.user.email ?? ""} disabled />
         </FormRow>
 
         <FormRow label="Phone number">
-          <PixelInput type="tel" defaultValue="+233 24 123 4567" />
+          <PixelInput type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </FormRow>
 
         <FormRow label="Room" sublabel="Assigned by hall management.">
-          <PixelInput defaultValue="Room 104" disabled />
+          <PixelInput value={roomLabel} disabled />
         </FormRow>
 
         <FormRow label="Hall">
-          <PixelInput defaultValue="Atlantic Hall, Floor 1" disabled />
+          <PixelInput value={hallLabel || "—"} disabled />
         </FormRow>
 
         <FormRow label="Student ID">
-          <PixelInput defaultValue="STU-2026-0104" disabled />
+          <PixelInput value={me?.student?.studentId ?? "—"} disabled />
         </FormRow>
       </PixelCard>
 
-      {/* ─── Notification preferences ─── */}
       <PixelCard className="p-5 sm:p-6">
         <CollapsibleHeader
           icon={Bell}
           title="Notification preferences"
-          sub="Manage how you receive alerts"
+          sub="Saved to your account"
           open={notifOpen}
           onToggle={() => setNotifOpen(!notifOpen)}
         />
@@ -112,16 +175,16 @@ export default function SettingsPage() {
             <ToggleRow
               icon={MessageSquare}
               title="SMS Notifications"
-              desc="Receive rotation alerts & payment reminders via SMS"
+              desc="Weekly pay SMS (Friday) and critical machine SMS (~2h). Stored in DB."
               enabled={smsNotif}
-              onToggle={() => setSmsNotif(!smsNotif)}
+              onToggle={() => void savePref({ notifySms: !smsNotif })}
             />
             <ToggleRow
               icon={Mail}
               title="Email Notifications"
-              desc="Get weekly summaries and receipts by email"
+              desc="Opt-in for future email digests (stored; email channel not fully wired yet)."
               enabled={emailNotif}
-              onToggle={() => setEmailNotif(!emailNotif)}
+              onToggle={() => void savePref({ notifyEmail: !emailNotif })}
             />
             <ToggleRow
               icon={Bell}
@@ -130,19 +193,19 @@ export default function SettingsPage() {
                 !supported
                   ? "Install the PWA / use a supported browser with VAPID configured"
                   : subscribed
-                    ? "On — early rotation alerts (paid students). SMS still fires ~2h before."
-                    : "Off — enable for free app alerts when your machine day is coming"
+                    ? "On this device — rotation + pay nudges when eligible"
+                    : "Off — enable for free app alerts"
               }
               enabled={subscribed}
               onToggle={async () => {
                 if (busy) return;
                 if (subscribed) {
                   await unsubscribe();
-                  toast.success("Push notifications off on this device.");
+                  toast.success("Push off on this device.");
                 } else {
                   const ok = await subscribe();
-                  if (ok) toast.success("Push notifications enabled.");
-                  else toast.error("Could not enable push. Allow notifications when prompted.");
+                  if (ok) toast.success("Push enabled.");
+                  else toast.error("Allow notifications when prompted.");
                 }
               }}
             />
@@ -150,12 +213,11 @@ export default function SettingsPage() {
         </div>
       </PixelCard>
 
-      {/* ─── Contract details ─── */}
       <PixelCard className="p-5 sm:p-6">
         <CollapsibleHeader
           icon={Building}
-          title="Contract details"
-          sub="Your subscription & machine info"
+          title="Subscription"
+          sub="Weekly fee & room"
           open={contractOpen}
           onToggle={() => setContractOpen(!contractOpen)}
         />
@@ -165,26 +227,27 @@ export default function SettingsPage() {
           }`}
         >
           <div className="space-y-3 border-2 border-teal-900/15 bg-teal-600/5 p-4 dark:border-teal-100/15 dark:bg-teal-400/5">
-            <ContractRow label="Status" value={<PixelBadge tone="green">Active</PixelBadge>} />
-            <ContractRow label="Period" value="Oct 2026 – Feb 2027" />
-            <ContractRow label="Weekly rate" value="GHS 35.00" bold />
-            <ContractRow label="Rotation group" value="Group 1 (7 rooms)" />
             <ContractRow
-              label="Machine"
+              label="Status"
               value={
-                <span className="font-black text-teal-700 dark:text-teal-300">
-                  WEWASH-W01-ATL
-                </span>
+                <PixelBadge tone={me?.student?.isActive !== false ? "green" : "slate"}>
+                  {me?.student?.isActive !== false ? "Active" : "Inactive"}
+                </PixelBadge>
               }
             />
+            <ContractRow
+              label="Weekly rate"
+              value={`GHS ${weekly.toFixed(2)}`}
+              bold
+            />
+            <ContractRow label="Room" value={roomLabel} />
+            <ContractRow label="Hall" value={hallLabel || "—"} />
           </div>
         </div>
       </PixelCard>
     </div>
   );
 }
-
-/* ─── Sub-components ─── */
 
 function FormRow({
   label,

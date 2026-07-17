@@ -90,10 +90,50 @@ export type MeResponse = {
     role: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
     phone?: string | null;
     image?: string | null;
+    notifySms?: boolean;
+    notifyEmail?: boolean;
   };
   student:
     | (StudentDTO & { room?: (RoomDTO & { hall?: HallDTO | null }) | null })
     | null;
+};
+
+export type WeekDuesStatus = {
+  studentId: string;
+  weeklyAmount: number;
+  paidThisWeek: number;
+  remaining: number;
+  isPaidInFull: boolean;
+  weekStart: string;
+  weekEnd: string;
+};
+
+export type PaymentReviewBoard = {
+  weekStart: string;
+  pendingProofs: PaymentDTO[];
+  unpaidThisWeek: Array<{
+    id: string;
+    studentId: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email?: string | null;
+    weeklyAmount: number;
+    /** Sum of COMPLETED pieces this Mon–Sun week */
+    paidThisWeek: number;
+    remaining: number;
+    isPaidInFull: boolean;
+    roomNumber?: string | null;
+    userId?: string | null;
+    rotationDayPassed: boolean;
+    scheduleDays: string[];
+    room?: {
+      id: string;
+      number: string;
+      hall?: { code: string; name: string } | null;
+    } | null;
+  }>;
+  counts: { pending: number; unpaid: number; paid: number };
 };
 
 export type MachineScheduleDTO = {
@@ -143,6 +183,7 @@ export type PaymentDTO = {
   reference?: string | null;
   momoTransactionId?: string | null;
   description?: string | null;
+  notes?: string | null;
   paidAt?: string | null;
   dueDate?: string | null;
   receiptUrl?: string | null;
@@ -151,6 +192,8 @@ export type PaymentDTO = {
     firstName: string;
     lastName: string;
     studentId: string;
+    weeklyAmount?: string | number | null;
+    roomNumber?: string | null;
     room?: RoomDTO | null;
   } | null;
 };
@@ -208,10 +251,18 @@ export type ScanResult = {
     minutesLate: number | null;
     status: "IN_USE" | "RETURNED" | "EXPIRED";
   };
-  machine: { id: string; serialNumber: string; name?: string | null; code?: string | null };
+  machine: {
+    id: string;
+    serialNumber: string;
+    name?: string | null;
+    code?: string | null;
+    label?: string;
+  };
+  student?: { id: string; firstName: string; lastName: string };
   room: { id: string; number: string } | null;
   hall: { code: string; name: string } | null;
   minutesToNextRotation: number;
+  message?: string;
 };
 
 export type StudentRotation = {

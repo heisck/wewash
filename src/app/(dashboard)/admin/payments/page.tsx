@@ -1,249 +1,775 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Banknote } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Banknote,
+  CheckCircle2,
+  Clock,
+  ImageIcon,
+  MessageSquare,
+  XCircle,
+  Plus,
+  Search,
+  ScanLine,
+  UserRound,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel, PixelSelect,
-  PixelTd, PixelTh,
+  PageTitle,
+  PixelBadge,
+  PixelButton,
+  PixelCard,
+  PixelInput,
+  PixelLabel,
+  PixelSelect,
+  PixelTd,
+  PixelTh,
+  SectionTitle,
+  StatTile,
 } from "@/components/pixel/pixel-ui";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { PaymentDTO, StudentDTO } from "@/lib/types/client";
+import type { MachineDTO, PaymentDTO, PaymentReviewBoard, StudentDTO } from "@/lib/types/client";
 
 const cedis = (n: string | number) => {
   const v = typeof n === "string" ? Number(n) : n;
-  return `₵${(v || 0).toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
+  return `₵${(Number.isFinite(v) ? v : 0).toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
 };
 
-function paymentBalance(p: PaymentDTO) {
-  const due = Number(p.amountDue ?? p.amount ?? 0);
-  const paid = Number(p.amountPaid ?? (p.status === "COMPLETED" ? p.amount : 0) ?? 0);
-  return { due, paid, outstanding: Math.max(0, due - paid) };
-}
-
 export default function AdminPaymentsPage() {
-  const { data: payments, reload } = useApi<PaymentDTO[]>("/api/v1/payments?limit=100");
-  const { data: students } = useApi<StudentDTO[]>("/api/v1/students?limit=100");
-  const [open, setOpen] = usePersistedState("admin/payments:recordOpen", false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const studentIdFromUrl = searchParams.get("studentId");
 
-  const list = payments ?? [];
-  const totals = useMemo(() => {
-    let collected = 0;
-    let outstanding = 0;
-    for (const p of list) {
-      const b = paymentBalance(p);
-      collected += b.paid;
-      outstanding += b.outstanding;
+  const { data: board, reload, loading } = useApi<PaymentReviewBoard>(
+    "/api/v1/payments/review-board"
+  );
+  const { data: students } = useApi<StudentDTO[]>("/api/v1/students?limit=200");
+  const { data: machines } = useApi<MachineDTO[]>("/api/v1/machines?limit=100");
+
+  const [recordOpen, setRecordOpen] = usePersistedState("admin/payments:recordOpen", false);
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [focusStudentId, setFocusStudentId] = useState<string | null>(studentIdFromUrl);
+  const [studentQuery, setStudentQuery] = useState("");
+
+  useEffect(() => {
+    if (studentIdFromUrl) setFocusStudentId(studentIdFromUrl);
+  }, [studentIdFromUrl]);
+
+  const pending = board?.pendingProofs ?? [];
+  const unpaid = board?.unpaidThisWeek ?? [];
+  const review = pending.find((p) => p.id === reviewId) ?? null;
+  const focusStudent =
+    (students ?? []).find((s) => s.id === focusStudentId) ??
+    null;
+  const focusPending = pending.filter((p) => p.studentId === focusStudentId);
+
+  const sortedPending = useMemo(() => {
+    return [...pending].sort((a, b) => {
+      const ra = a.student?.room?.number ?? "";
+      const rb = b.student?.room?.number ?? "";
+      const t = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (t !== 0) return t;
+      return String(ra).localeCompare(String(rb), undefined, { numeric: true });
+    });
+  }, [pending]);
+
+  const studentHits = useMemo(() => {
+    const q = studentQuery.trim().toLowerCase();
+    if (!q) return (students ?? []).slice(0, 8);
+    return (students ?? [])
+      .filter(
+        (s) =>
+          `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+          s.studentId.toLowerCase().includes(q) ||
+          (s.room?.number ?? s.roomNumber ?? "").toLowerCase().includes(q) ||
+          s.phone.includes(q)
+      )
+      .slice(0, 12);
+  }, [students, studentQuery]);
+
+  const confirm = async (p: PaymentDTO) => {
+    try {
+      await api.patch(`/api/v1/payments/${p.id}`, {
+        status: "COMPLETED",
+        amountPaid: Number(p.amountPaid ?? p.amount),
+      });
+      toast.success(
+        `Confirmed ${cedis(p.amountPaid ?? p.amount)} for ${p.student?.firstName ?? "student"}.`
+      );
+      setReviewId(null);
+      reload();
+    } catch (err) {
+      toast.error((err as ApiError).message || "Confirm failed");
     }
-    return { collected, outstanding };
-  }, [list]);
+  };
+
+  const reject = async (p: PaymentDTO) => {
+    try {
+      await api.patch(`/api/v1/payments/${p.id}`, { status: "FAILED" });
+      toast.message("Marked not verified — student was notified.");
+      setReviewId(null);
+      reload();
+    } catch (err) {
+      toast.error((err as ApiError).message || "Update failed");
+    }
+  };
+
+  const remind = async (studentId: string, firstName: string, remaining: number) => {
+    try {
+      await api.post("/api/v1/notifications", {
+        target: "selected",
+        studentIds: [studentId],
+        title: "WeWash payment reminder",
+        body: `Hi ${firstName}, please complete this week's WeWash dues. GHS ${remaining} still remaining — pay off-app and upload proof. - WeWash`,
+        channels: ["SMS", "PUSH"],
+      });
+      toast.success(`Reminder sent to ${firstName}.`);
+    } catch (err) {
+      toast.error((err as ApiError).message || "Could not send reminder");
+    }
+  };
+
+  const openStudent = (id: string) => {
+    setFocusStudentId(id);
+    router.replace(`/admin/payments?studentId=${id}`, { scroll: false });
+  };
+
+  const closeStudent = () => {
+    setFocusStudentId(null);
+    router.replace("/admin/payments", { scroll: false });
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageTitle text="PAYMENTS" sub="Manual records · paid / partial / outstanding" />
-        <PixelButton onClick={() => setOpen(true)}>
-          <Plus className="h-3.5 w-3.5" /> Record payment
+        <PageTitle
+          text="PAYMENTS"
+          sub="Approve proofs · manual record · manual scan per student"
+        />
+        <PixelButton variant="outline" onClick={() => setRecordOpen(true)}>
+          <Plus className="h-3.5 w-3.5" /> Manual record
         </PixelButton>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PixelCard className="p-4">
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">Collected (list)</p>
-          <p className="mt-1 text-2xl font-black text-teal-700 dark:text-teal-300">
-            {cedis(totals.collected)}
-          </p>
-        </PixelCard>
-        <PixelCard className="p-4">
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">Outstanding (list)</p>
-          <p className="mt-1 text-2xl font-black text-amber-600">{cedis(totals.outstanding)}</p>
-        </PixelCard>
-      </div>
-
-      <PixelCard className="overflow-x-auto">
-        {list.length === 0 ? (
-          <div className="flex items-center justify-center py-16 text-[10px] font-black uppercase tracking-widest text-teal-900/40">
-            <Banknote className="mr-2 h-4 w-4" /> No payments recorded yet.
-          </div>
-        ) : (
-          <table className="w-full min-w-[900px] text-left">
-            <thead>
-              <tr className="border-b-2 border-teal-900/15">
-                <PixelTh className="pt-4">Student</PixelTh>
-                <PixelTh className="pt-4">Room</PixelTh>
-                <PixelTh className="pt-4">Due</PixelTh>
-                <PixelTh className="pt-4">Paid</PixelTh>
-                <PixelTh className="pt-4">Status</PixelTh>
-                <PixelTh className="pt-4">Proof</PixelTh>
-                <PixelTh className="pt-4">Reference</PixelTh>
-                <PixelTh className="pt-4">Date</PixelTh>
-                <PixelTh className="pt-4">Actions</PixelTh>
-              </tr>
-            </thead>
-            <tbody className="divide-y-2 divide-teal-900/5">
-              {list.map((p) => {
-                const b = paymentBalance(p);
-                const statusLabel =
-                  p.status === "PENDING" && b.paid > 0
-                    ? "AWAITING"
-                    : b.outstanding <= 0 && b.paid > 0
-                      ? "PAID"
-                      : b.paid > 0 && b.outstanding > 0
-                        ? "PARTIAL"
-                        : p.status;
+      {/* Find student → open their panel */}
+      <PixelCard className="p-4">
+        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">
+          Find student
+        </p>
+        <div className="relative mt-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-teal-900/40" />
+          <PixelInput
+            className="pl-9"
+            placeholder="Name, ID, room, phone…"
+            value={studentQuery}
+            onChange={(e) => setStudentQuery(e.target.value)}
+          />
+        </div>
+        {studentQuery.trim() && (
+          <ul className="mt-2 max-h-48 divide-y-2 divide-teal-900/5 overflow-y-auto border-2 border-teal-900/10">
+            {studentHits.length === 0 ? (
+              <li className="px-3 py-4 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+                No match
+              </li>
+            ) : (
+              studentHits.map((s) => {
+                const hasPending = pending.some((p) => p.studentId === s.id);
                 return (
-                  <tr key={p.id}>
-                    <PixelTd>
-                      {p.student
-                        ? `${p.student.firstName} ${p.student.lastName}`
-                        : p.studentId}
-                    </PixelTd>
-                    <PixelTd>{p.student?.room?.number ?? "—"}</PixelTd>
-                    <PixelTd>{cedis(b.due)}</PixelTd>
-                    <PixelTd>{cedis(b.paid)}</PixelTd>
-                    <PixelTd>
-                      <PixelBadge
-                        tone={
-                          statusLabel === "PAID" || statusLabel === "COMPLETED"
-                            ? "green"
-                            : statusLabel === "PARTIAL" || statusLabel === "AWAITING"
-                              ? "amber"
-                              : "slate"
-                        }
-                      >
-                        {statusLabel}
-                      </PixelBadge>
-                    </PixelTd>
-                    <PixelTd className="text-[10px]">
-                      {p.receiptUrl ? (
-                        <a
-                          href={p.receiptUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-black uppercase tracking-wider text-teal-700 underline dark:text-teal-300"
-                        >
-                          Screenshot
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </PixelTd>
-                    <PixelTd className="text-[10px]">
-                      {p.reference || p.momoTransactionId || "—"}
-                    </PixelTd>
-                    <PixelTd className="text-[10px]">
-                      {p.paidAt
-                        ? new Date(p.paidAt).toLocaleDateString()
-                        : p.dueDate
-                          ? `Due ${new Date(p.dueDate).toLocaleDateString()}`
-                          : new Date(p.createdAt).toLocaleDateString()}
-                    </PixelTd>
-                    <PixelTd>
-                      {p.status === "PENDING" ? (
-                        <div className="flex flex-wrap gap-1">
-                          <PixelButton
-                            size="sm"
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await api.patch(`/api/v1/payments/${p.id}`, {
-                                  status: "COMPLETED",
-                                  amountPaid: Number(p.amountPaid ?? p.amount),
-                                });
-                                toast.success("Payment confirmed.");
-                                reload();
-                              } catch (err) {
-                                toast.error((err as ApiError).message || "Confirm failed");
-                              }
-                            }}
-                          >
-                            Confirm
-                          </PixelButton>
-                          <PixelButton
-                            size="sm"
-                            variant="outline"
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await api.patch(`/api/v1/payments/${p.id}`, {
-                                  status: "FAILED",
-                                });
-                                toast.message("Marked not verified.");
-                                reload();
-                              } catch (err) {
-                                toast.error((err as ApiError).message || "Update failed");
-                              }
-                            }}
-                          >
-                            Reject
-                          </PixelButton>
-                        </div>
-                      ) : (
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-teal-900/30">
-                          —
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openStudent(s.id);
+                        setStudentQuery("");
+                      }}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition hover:bg-teal-600/5"
+                    >
+                      <span>
+                        <span className="text-xs font-black uppercase text-teal-950 dark:text-white">
+                          {s.firstName} {s.lastName}
                         </span>
+                        <span className="mt-0.5 block text-[9px] font-bold text-teal-900/45">
+                          {s.studentId}
+                          {s.room?.number || s.roomNumber
+                            ? ` · Rm ${s.room?.number ?? s.roomNumber}`
+                            : ""}
+                        </span>
+                      </span>
+                      {hasPending ? (
+                        <PixelBadge tone="amber">APPROVE</PixelBadge>
+                      ) : (
+                        <PixelBadge tone="slate">SCAN / PAY</PixelBadge>
                       )}
-                    </PixelTd>
-                  </tr>
+                    </button>
+                  </li>
                 );
-              })}
-            </tbody>
-          </table>
+              })
+            )}
+          </ul>
         )}
       </PixelCard>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatTile
+          label="Awaiting your check"
+          value={String(board?.counts.pending ?? 0)}
+          sub="Student proofs to verify"
+          icon={<Clock />}
+        />
+        <StatTile
+          label="Not paid in full"
+          value={String(board?.counts.unpaid ?? 0)}
+          sub="Confirmed total still under weekly fee"
+          icon={<Banknote />}
+        />
+        <StatTile
+          label="Paid in full"
+          value={String(board?.counts.paid ?? 0)}
+          sub="Confirmed total ≥ weekly fee"
+          icon={<CheckCircle2 />}
+        />
+      </div>
+
+      {/* ── Verify queue ── */}
+      <div className="space-y-3">
+        <SectionTitle text="VERIFY PAYMENT PROOFS" />
+        <p className="text-xs text-teal-900/55 dark:text-teal-100/55">
+          Tap a card to see the screenshot and approve. Or open a student for approve + manual
+          scan together.
+        </p>
+        {loading && !board ? (
+          <PixelCard className="py-12 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+            Loading queue…
+          </PixelCard>
+        ) : sortedPending.length === 0 ? (
+          <PixelCard className="flex items-center justify-center gap-2 py-12 text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+            <CheckCircle2 className="h-4 w-4" /> No proofs waiting — queue clear.
+          </PixelCard>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {sortedPending.map((p) => {
+              const claimed = Number(p.amountPaid ?? p.amount ?? 0);
+              const expected = Number(p.amountDue ?? p.student?.weeklyAmount ?? claimed);
+              const room =
+                p.student?.room?.number ??
+                (p.student as { roomNumber?: string } | undefined)?.roomNumber ??
+                "—";
+              const hall = p.student?.room?.hall?.code;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    if (p.studentId) openStudent(p.studentId);
+                    setReviewId(p.id);
+                  }}
+                  className="overflow-hidden border-2 border-teal-900/20 bg-white text-left shadow-pixel-sm transition hover:border-teal-600 dark:border-teal-100/15 dark:bg-teal-950/40"
+                >
+                  <div className="relative aspect-[4/3] w-full border-b-2 border-teal-900/10 bg-teal-950/5 dark:border-teal-100/10">
+                    {p.receiptUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.receiptUrl}
+                        alt={`Payment proof from ${p.student?.firstName ?? "student"}`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-2 text-teal-900/40">
+                        <ImageIcon className="h-8 w-8" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">
+                          No screenshot
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute right-2 top-2">
+                      <PixelBadge tone="amber">CHECK</PixelBadge>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+                      Room {room}
+                      {hall ? ` · ${hall}` : ""}
+                    </p>
+                    <p className="mt-1 text-sm font-black uppercase tracking-wide text-teal-950 dark:text-white">
+                      {p.student
+                        ? `${p.student.firstName} ${p.student.lastName}`
+                        : p.studentId}
+                    </p>
+                    <p className="mt-3 text-3xl font-black tabular-nums text-teal-700 dark:text-teal-300">
+                      {cedis(claimed)}
+                    </p>
+                    <p className="mt-1 text-[10px] font-bold text-teal-900/50">
+                      Weekly fee: {cedis(expected)}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Not paid in full ── */}
+      <div className="space-y-3">
+        <SectionTitle text="NOT PAID IN FULL (BY ROOM)" />
+        <PixelCard className="overflow-x-auto">
+          {unpaid.length === 0 ? (
+            <p className="py-10 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+              Everyone with a weekly fee is paid in full this week.
+            </p>
+          ) : (
+            <table className="w-full min-w-[860px] text-left">
+              <thead>
+                <tr className="border-b-2 border-teal-900/15">
+                  <PixelTh className="pt-4">Room</PixelTh>
+                  <PixelTh className="pt-4">Student</PixelTh>
+                  <PixelTh className="pt-4">Weekly fee</PixelTh>
+                  <PixelTh className="pt-4">Paid</PixelTh>
+                  <PixelTh className="pt-4">Remaining</PixelTh>
+                  <PixelTh className="pt-4">Actions</PixelTh>
+                </tr>
+              </thead>
+              <tbody className="divide-y-2 divide-teal-900/5">
+                {unpaid.map((s) => (
+                  <tr key={s.id}>
+                    <PixelTd className="font-black">
+                      {s.room?.number ?? s.roomNumber ?? "—"}
+                    </PixelTd>
+                    <PixelTd>
+                      {s.firstName} {s.lastName}
+                      <span className="mt-0.5 block text-[9px] text-teal-900/40">{s.studentId}</span>
+                    </PixelTd>
+                    <PixelTd className="font-black tabular-nums">{cedis(s.weeklyAmount)}</PixelTd>
+                    <PixelTd className="tabular-nums">{cedis(s.paidThisWeek ?? 0)}</PixelTd>
+                    <PixelTd className="font-black tabular-nums text-amber-600">
+                      {cedis(s.remaining ?? s.weeklyAmount)}
+                    </PixelTd>
+                    <PixelTd>
+                      <div className="flex flex-wrap gap-1">
+                        <PixelButton size="sm" type="button" onClick={() => openStudent(s.id)}>
+                          <UserRound className="h-3 w-3" /> Open
+                        </PixelButton>
+                        <PixelButton
+                          size="sm"
+                          variant="outline"
+                          type="button"
+                          onClick={() =>
+                            remind(s.id, s.firstName, s.remaining ?? s.weeklyAmount)
+                          }
+                        >
+                          <MessageSquare className="h-3 w-3" /> Remind
+                        </PixelButton>
+                      </div>
+                    </PixelTd>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </PixelCard>
+      </div>
+
+      <ReviewDialog
+        payment={review}
+        onClose={() => setReviewId(null)}
+        onConfirm={() => review && confirm(review)}
+        onReject={() => review && reject(review)}
+      />
+
+      <StudentFocusDialog
+        student={focusStudent}
+        pending={focusPending}
+        machines={machines ?? []}
+        onClose={closeStudent}
+        onApprove={(p) => confirm(p)}
+        onReject={(p) => reject(p)}
+        onReviewImage={(p) => setReviewId(p.id)}
+        onRecorded={() => {
+          reload();
+        }}
+        onScanned={() => {
+          reload();
+        }}
+      />
+
       <RecordPaymentDialog
-        open={open}
+        open={recordOpen}
         students={students ?? []}
-        onClose={() => setOpen(false)}
+        presetStudentId={null}
+        onClose={() => setRecordOpen(false)}
         onDone={() => {
           reload();
-          setOpen(false);
+          setRecordOpen(false);
         }}
       />
     </div>
   );
 }
 
+/** Per-student panel: approve pending proofs, manual scan, manual record. */
+function StudentFocusDialog({
+  student,
+  pending,
+  machines,
+  onClose,
+  onApprove,
+  onReject,
+  onReviewImage,
+  onRecorded,
+  onScanned,
+}: {
+  student: StudentDTO | null;
+  pending: PaymentDTO[];
+  machines: MachineDTO[];
+  onClose: () => void;
+  onApprove: (p: PaymentDTO) => void;
+  onReject: (p: PaymentDTO) => void;
+  onReviewImage: (p: PaymentDTO) => void;
+  onRecorded: () => void;
+  onScanned: () => void;
+}) {
+  const [machineId, setMachineId] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
+
+  useEffect(() => {
+    setMachineId("");
+    setRecordOpen(false);
+  }, [student?.id]);
+
+  if (!student) return null;
+
+  const weekly = Number(student.weeklyAmount ?? 0);
+  const roomLabel = student.room?.number ?? student.roomNumber ?? "—";
+
+  const manualScan = async () => {
+    if (!machineId) {
+      toast.error("Pick a machine.");
+      return;
+    }
+    setScanning(true);
+    try {
+      const res = await api.post<{ message?: string }>("/api/v1/scan", {
+        studentId: student.id,
+        machineId,
+      });
+      toast.success(res.message || `Machine claimed for ${student.firstName}.`);
+      onScanned();
+    } catch (err) {
+      toast.error((err as ApiError).message || "Manual scan failed");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={!!student} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-wider">
+              {student.firstName} {student.lastName}
+            </DialogTitle>
+            <DialogDescription>
+              {student.studentId} · Room {roomLabel}
+              {student.phone ? ` · ${student.phone}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="border-2 border-teal-900/15 p-3">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">
+                  Weekly fee
+                </p>
+                <p className="text-xl font-black tabular-nums">{cedis(weekly)}</p>
+              </div>
+              <div className="border-2 border-teal-900/15 p-3">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">
+                  Pending proofs
+                </p>
+                <p className="text-xl font-black tabular-nums">{pending.length}</p>
+              </div>
+            </div>
+
+            {/* Approve queue for this student */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-teal-900/50">
+                Approve payment
+              </p>
+              {pending.length === 0 ? (
+                <p className="border-2 border-dashed border-teal-900/15 px-3 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-teal-900/40">
+                  No proof waiting — use manual record if they paid you directly
+                </p>
+              ) : (
+                pending.map((p) => {
+                  const claimed = Number(p.amountPaid ?? p.amount ?? 0);
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex flex-col gap-2 border-2 border-amber-500/30 bg-amber-500/5 p-3 sm:flex-row sm:items-center"
+                    >
+                      {p.receiptUrl ? (
+                        <button type="button" onClick={() => onReviewImage(p)} className="shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={p.receiptUrl}
+                            alt="Proof"
+                            className="h-16 w-16 border-2 border-teal-900/15 object-cover"
+                          />
+                        </button>
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-lg font-black tabular-nums text-teal-800 dark:text-teal-200">
+                          {cedis(claimed)}
+                        </p>
+                        <p className="text-[9px] text-teal-900/45">
+                          {new Date(p.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <PixelButton size="sm" type="button" onClick={() => onApprove(p)}>
+                          <CheckCircle2 className="h-3 w-3" /> Approve
+                        </PixelButton>
+                        <PixelButton
+                          size="sm"
+                          variant="outline"
+                          type="button"
+                          onClick={() => onReject(p)}
+                        >
+                          <XCircle className="h-3 w-3" /> Reject
+                        </PixelButton>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Manual scan */}
+            <div className="space-y-2 border-2 border-teal-900/15 p-3">
+              <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-teal-900/50">
+                <ScanLine className="h-3.5 w-3.5" /> Manual scan for this student
+              </p>
+              <p className="text-[10px] text-teal-900/50">
+                Records that a machine is with {student.firstName} in Room {roomLabel}.
+              </p>
+              <PixelSelect
+                value={machineId}
+                onChange={(e) => setMachineId(e.target.value)}
+                aria-label="Machine"
+              >
+                <option value="">Select machine…</option>
+                {machines
+                  .filter((m) => m.status === "ACTIVE" || m.status === "MAINTENANCE")
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.code || m.name || m.serialNumber}
+                      {m.serialNumber && m.code ? ` · ${m.serialNumber}` : ""}
+                    </option>
+                  ))}
+              </PixelSelect>
+              <PixelButton
+                type="button"
+                className="w-full"
+                disabled={scanning || !machineId}
+                onClick={() => void manualScan()}
+              >
+                {scanning ? "Claiming…" : "Claim machine for student"}
+              </PixelButton>
+            </div>
+
+            <PixelButton
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setRecordOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> Manual record payment
+            </PixelButton>
+          </div>
+
+          <DialogFooter>
+            <PixelButton type="button" variant="outline" onClick={onClose}>
+              Close
+            </PixelButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <RecordPaymentDialog
+        open={recordOpen}
+        students={[student]}
+        presetStudentId={student.id}
+        onClose={() => setRecordOpen(false)}
+        onDone={() => {
+          setRecordOpen(false);
+          onRecorded();
+        }}
+      />
+    </>
+  );
+}
+
+function ReviewDialog({
+  payment,
+  onClose,
+  onConfirm,
+  onReject,
+}: {
+  payment: PaymentDTO | null;
+  onClose: () => void;
+  onConfirm: () => void;
+  onReject: () => void;
+}) {
+  if (!payment) return null;
+  const claimed = Number(payment.amountPaid ?? payment.amount ?? 0);
+  const expected = Number(
+    payment.amountDue ??
+      (payment.student as { weeklyAmount?: string | number } | undefined)?.weeklyAmount ??
+      claimed
+  );
+  const room = payment.student?.room?.number ?? "—";
+  const hall = payment.student?.room?.hall?.code;
+
+  return (
+    <Dialog open={!!payment} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25 sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-black uppercase tracking-wider">
+            Verify payment
+          </DialogTitle>
+          <DialogDescription>
+            Match the amount on your phone with the screenshot, then approve.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {payment.receiptUrl ? (
+            <div className="overflow-hidden border-2 border-teal-900/20 bg-black/5 dark:bg-black/30">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={payment.receiptUrl}
+                alt="Payment screenshot uploaded by student"
+                className="mx-auto max-h-[min(60vh,520px)] w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-amber-500/40 py-16 text-amber-600">
+              <ImageIcon className="h-10 w-10" />
+              <p className="text-[10px] font-black uppercase tracking-widest">
+                No screenshot uploaded
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="border-2 border-teal-900/15 bg-teal-600/5 p-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">
+                Student
+              </p>
+              <p className="mt-1 text-sm font-black uppercase text-teal-950 dark:text-white">
+                {payment.student
+                  ? `${payment.student.firstName} ${payment.student.lastName}`
+                  : payment.studentId}
+              </p>
+              <p className="text-[10px] font-bold text-teal-900/50">
+                Room {room}
+                {hall ? ` · ${hall}` : ""}
+              </p>
+            </div>
+            <div className="border-2 border-teal-600/40 bg-teal-600/10 p-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/50">
+                Claims paid
+              </p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-teal-800 dark:text-teal-200">
+                {cedis(claimed)}
+              </p>
+            </div>
+            <div className="border-2 border-teal-900/15 p-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/40">
+                Weekly fee
+              </p>
+              <p className="mt-1 text-2xl font-black tabular-nums">{cedis(expected)}</p>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          <PixelButton type="button" variant="outline" onClick={onClose}>
+            Later
+          </PixelButton>
+          <PixelButton type="button" variant="outline" onClick={onReject}>
+            <XCircle className="h-3.5 w-3.5" /> Reject
+          </PixelButton>
+          <PixelButton type="button" onClick={onConfirm}>
+            <CheckCircle2 className="h-3.5 w-3.5" /> Approve {cedis(claimed)}
+          </PixelButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RecordPaymentDialog({
   open,
   students,
+  presetStudentId,
   onClose,
   onDone,
 }: {
   open: boolean;
   students: StudentDTO[];
+  presetStudentId: string | null;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [studentId, setStudentId] = useState("");
-  const [amountDue, setDue] = useState("");
+  const [studentId, setStudentId] = useState(presetStudentId ?? "");
   const [amountPaid, setPaid] = useState("");
-  const [method, setMethod] = useState("MOBILE_MONEY");
+  const [method, setMethod] = useState("CASH");
   const [reference, setRef] = useState("");
   const [momoTransactionId, setMomo] = useState("");
-  const [receiptUrl, setReceipt] = useState("");
-  const [paidAt, setPaidAt] = useState("");
   const [saving, setSaving] = useState(false);
 
   const student = students.find((s) => s.id === studentId);
+  const amountDue =
+    student?.weeklyAmount != null ? String(Number(student.weeklyAmount)) : "";
+
+  useEffect(() => {
+    if (!open) return;
+    const id = presetStudentId ?? "";
+    setStudentId(id);
+    const s = students.find((x) => x.id === id);
+    if (s?.weeklyAmount != null) setPaid(String(Number(s.weeklyAmount)));
+    else setPaid("");
+    setRef("");
+    setMomo("");
+    setMethod("CASH");
+  }, [open, presetStudentId, students]);
 
   const onPickStudent = (id: string) => {
     setStudentId(id);
     const s = students.find((x) => x.id === id);
-    if (s?.weeklyAmount != null) {
-      const w = String(s.weeklyAmount);
-      setDue(w);
-      if (!amountPaid) setPaid(w);
-    }
+    if (s?.weeklyAmount != null) setPaid(String(Number(s.weeklyAmount)));
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!studentId) {
+      toast.error("Select a student.");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/api/v1/payments", {
@@ -252,20 +778,12 @@ function RecordPaymentDialog({
         amountPaid: Number(amountPaid) || 0,
         amount: Number(amountPaid) || 0,
         method,
-        reference: reference || undefined,
-        momoTransactionId: momoTransactionId || undefined,
-        receiptUrl: receiptUrl || undefined,
-        paidAt: paidAt || undefined,
+        reference: reference.trim() || undefined,
+        momoTransactionId: momoTransactionId.trim() || undefined,
+        status: "COMPLETED",
       });
       toast.success("Payment recorded.");
       onDone();
-      setStudentId("");
-      setDue("");
-      setPaid("");
-      setRef("");
-      setMomo("");
-      setReceipt("");
-      setPaidAt("");
     } catch (err) {
       toast.error((err as ApiError).message || "Could not record payment.");
     } finally {
@@ -277,15 +795,23 @@ function RecordPaymentDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
         <DialogHeader>
-          <DialogTitle className="font-black uppercase tracking-wider">Record payment</DialogTitle>
+          <DialogTitle className="font-black uppercase tracking-wider">
+            Manual record
+          </DialogTitle>
           <DialogDescription>
-            Manual entry with due / paid amounts, MoMo ID, and confirmation screenshot URL.
+            Cash or confirmed off-app payment you verified yourself. Due is the weekly fee (read-only).
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4 py-2">
           <div className="space-y-2">
             <PixelLabel htmlFor="stu">Student</PixelLabel>
-            <PixelSelect id="stu" value={studentId} onChange={(e) => onPickStudent(e.target.value)} required>
+            <PixelSelect
+              id="stu"
+              value={studentId}
+              onChange={(e) => onPickStudent(e.target.value)}
+              required
+              disabled={!!presetStudentId}
+            >
               <option value="">Select student…</option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -294,52 +820,65 @@ function RecordPaymentDialog({
                 </option>
               ))}
             </PixelSelect>
-            {student?.room && (
+            {student && (
               <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40">
-                Room {student.room.number}
-                {student.room.hall?.code ? ` · ${student.room.hall.code}` : ""}
+                Room {student.room?.number ?? student.roomNumber ?? "—"}
+                {student.phone ? ` · ${student.phone}` : ""}
               </p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <PixelLabel htmlFor="due">Amount due (GHS)</PixelLabel>
-              <PixelInput id="due" type="number" step="0.01" value={amountDue} onChange={(e) => setDue(e.target.value)} required />
+              <PixelInput
+                id="due"
+                type="number"
+                step="0.01"
+                value={amountDue}
+                readOnly
+                disabled
+                className="opacity-80"
+              />
+              <p className="text-[8px] font-bold uppercase tracking-widest text-teal-900/35">
+                From student weekly fee
+              </p>
             </div>
             <div className="space-y-2">
               <PixelLabel htmlFor="paid">Amount paid (GHS)</PixelLabel>
-              <PixelInput id="paid" type="number" step="0.01" value={amountPaid} onChange={(e) => setPaid(e.target.value)} required />
+              <PixelInput
+                id="paid"
+                type="number"
+                step="0.01"
+                value={amountPaid}
+                onChange={(e) => setPaid(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <PixelLabel htmlFor="method">Method</PixelLabel>
               <PixelSelect id="method" value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="MOBILE_MONEY">Mobile Money</option>
                 <option value="CASH">Cash</option>
+                <option value="MOBILE_MONEY">Mobile Money</option>
                 <option value="BANK_TRANSFER">Bank transfer</option>
-                <option value="CARD">Card</option>
                 <option value="OTHER">Other</option>
               </PixelSelect>
             </div>
             <div className="space-y-2">
-              <PixelLabel htmlFor="paidAt">Date paid</PixelLabel>
-              <PixelInput id="paidAt" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <PixelLabel htmlFor="ref">Transaction reference</PixelLabel>
-              <PixelInput id="ref" value={reference} onChange={(e) => setRef(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <PixelLabel htmlFor="momo">MoMo transaction ID</PixelLabel>
-              <PixelInput id="momo" value={momoTransactionId} onChange={(e) => setMomo(e.target.value)} />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <PixelLabel htmlFor="shot">Screenshot / receipt URL</PixelLabel>
+              <PixelLabel htmlFor="ref">Reference (optional)</PixelLabel>
               <PixelInput
-                id="shot"
-                type="url"
-                placeholder="https://…"
-                value={receiptUrl}
-                onChange={(e) => setReceipt(e.target.value)}
+                id="ref"
+                value={reference}
+                onChange={(e) => setRef(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <PixelLabel htmlFor="momo">Transaction ID (optional)</PixelLabel>
+              <PixelInput
+                id="momo"
+                value={momoTransactionId}
+                onChange={(e) => setMomo(e.target.value)}
+                placeholder="Optional MoMo / bank txn id"
               />
             </div>
           </div>
@@ -347,7 +886,7 @@ function RecordPaymentDialog({
             <PixelButton type="button" variant="outline" onClick={onClose}>
               Cancel
             </PixelButton>
-            <PixelButton type="submit" disabled={saving}>
+            <PixelButton type="submit" disabled={saving || !studentId}>
               {saving ? "Saving..." : "Save payment"}
             </PixelButton>
           </DialogFooter>
