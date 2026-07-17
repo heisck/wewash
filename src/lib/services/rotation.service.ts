@@ -134,7 +134,7 @@ export function nextOccurrence(dayOfWeek: DayOfWeek, hhmm: string, now: Date = n
 
 /**
  * Rotation view for a specific student: when is *their* room's turn, and is the
- * machine physically in their room right now.
+ * machine physically in their room right now. Supports multi-day room slots.
  */
 export async function getStudentRotation(userId: string, now: Date = new Date()) {
   const student = await prisma.student.findFirst({
@@ -143,29 +143,68 @@ export async function getStudentRotation(userId: string, now: Date = new Date())
   });
   if (!student?.roomId) return null;
 
-  const mySchedule = (await prisma.machineSchedule.findFirst({
+  const mySchedules = await prisma.machineSchedule.findMany({
     where: { roomId: student.roomId, isActive: true },
     include: { room: { include: { hall: true } }, machine: true },
-  })) as (ScheduleWithRoom & { machine: { id: string; serialNumber: string } }) | null;
-  if (!mySchedule) return null;
+    orderBy: { orderIndex: "asc" },
+  });
+  if (!mySchedules.length) return null;
 
-  const rotation = await getRotationForMachine(mySchedule.machineId, now);
+  const mySchedule = mySchedules[0]!;
+  const machineId = mySchedule.machineId;
+  const rotation = await getRotationForMachine(machineId, now);
   const isHereNow = rotation.room?.id === student.roomId;
-  const nextTurnAt = nextOccurrence(mySchedule.dayOfWeek, mySchedule.startTime, now);
+
+  // Earliest upcoming handoff among all of this room's days
+  let nextTurnAt = nextOccurrence(
+    mySchedule.dayOfWeek,
+    mySchedule.startTime,
+    now
+  );
+  for (const s of mySchedules) {
+    const t = nextOccurrence(s.dayOfWeek, s.startTime, now);
+    if (t.getTime() < nextTurnAt.getTime()) nextTurnAt = t;
+  }
+
+  const minutesToNext = Math.max(
+    0,
+    Math.round((nextTurnAt.getTime() - now.getTime()) / 60000)
+  );
 
   return {
-    machine: { id: mySchedule.machine.id, serialNumber: mySchedule.machine.serialNumber },
+    machine: {
+      id: mySchedule.machine.id,
+      serialNumber: mySchedule.machine.serialNumber,
+      name: mySchedule.machine.name,
+      code: mySchedule.machine.code,
+    },
     myRoom: { id: mySchedule.room.id, number: mySchedule.room.number },
     hall: mySchedule.room.hall
       ? { code: mySchedule.room.hall.code, name: mySchedule.room.hall.name }
       : null,
-    myDay: mySchedule.dayOfWeek,
-    myStartTime: mySchedule.startTime,
+    /** Primary/next slot day (for compact display) */
+    myDay: mySchedules.find(
+      (s) =>
+        nextOccurrence(s.dayOfWeek, s.startTime, now).getTime() ===
+        nextTurnAt.getTime()
+    )?.dayOfWeek ?? mySchedule.dayOfWeek,
+    myStartTime:
+      mySchedules.find(
+        (s) =>
+          nextOccurrence(s.dayOfWeek, s.startTime, now).getTime() ===
+          nextTurnAt.getTime()
+      )?.startTime ?? mySchedule.startTime,
+    /** All wash days for this room (roommates share these) */
+    slots: mySchedules.map((s) => ({
+      dayOfWeek: s.dayOfWeek,
+      startTime: s.startTime,
+    })),
     isHereNow,
     nextTurnAt: nextTurnAt.toISOString(),
     currentRoom: rotation.room,
     windowEndAt: rotation.windowEndAt,
-    minutesToNextRotation: rotation.minutesToNextRotation,
+    minutesToNextRotation: minutesToNext,
+    hoursToNextRotation: Math.round((minutesToNext / 60) * 10) / 10,
   };
 }
 

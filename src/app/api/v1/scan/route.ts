@@ -14,14 +14,20 @@ const scanSchema = z
     /** Admin manual scan: claim machine for a student. */
     studentId: z.string().min(1).optional(),
     machineId: z.string().min(1).optional(),
+    /** Student feedback while holding the machine */
+    feedbackRating: z
+      .enum(["frown", "meh", "smile", "heart", "star"])
+      .optional(),
   })
   .superRefine((v, ctx) => {
     const selfScan = !!v.qrToken;
     const adminScan = !!v.studentId && !!v.machineId;
-    if (!selfScan && !adminScan) {
+    const feedback = !!v.feedbackRating;
+    if (!selfScan && !adminScan && !feedback) {
       ctx.addIssue({
         code: "custom",
-        message: "Provide qrToken, or studentId + machineId for admin manual scan",
+        message:
+          "Provide qrToken, studentId+machineId, or feedbackRating",
       });
     }
   });
@@ -30,6 +36,7 @@ const scanSchema = z
  * POST /api/v1/scan
  * - Student: { qrToken } from machine QR
  * - Admin: { studentId, machineId } manual claim for that student
+ * - Student: { feedbackRating } rate active session
  */
 async function postHandler(req: NextRequest) {
   try {
@@ -38,6 +45,14 @@ async function postHandler(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const input = scanSchema.parse(body);
+
+    if (input.feedbackRating) {
+      const result = await scanService.submitFeedback(
+        session.user,
+        input.feedbackRating
+      );
+      return successResponse(result);
+    }
 
     if (input.qrToken) {
       const result = await scanService.scan(session.user, input.qrToken);

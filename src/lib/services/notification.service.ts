@@ -30,13 +30,19 @@ export class NotificationService {
     const userIds = [...new Set(input.userIds ?? [])];
 
     // Resolve phone numbers for the target users (User.phone or linked Student.phone).
+    // Honor User.notifySms when resolving from userIds (explicit `phones` always send).
     let phones = [...(input.phones ?? [])];
     if (channels.includes("SMS") && userIds.length) {
       const users = await prisma.user.findMany({
         where: { id: { in: userIds } },
-        select: { phone: true, student: { select: { phone: true } } },
+        select: {
+          phone: true,
+          notifySms: true,
+          student: { select: { phone: true } },
+        },
       });
       for (const u of users) {
+        if (u.notifySms === false) continue;
         const p = u.phone || u.student?.phone;
         if (p) phones.push(p);
       }

@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
                 phone: true,
                 firstName: true,
                 weeklyAmount: true,
+                user: { select: { notifySms: true } },
               },
             },
           },
@@ -99,13 +100,19 @@ export async function GET(req: NextRequest) {
         if (window === 6) counts.push6 += pushEligible.length;
       }
 
-      // Critical SMS for everyone with a phone (~2h)
+      // Critical SMS ~2h — only students who keep SMS on (notifySms !== false)
       if (inHourWindow(hoursUntil, SMS_WINDOW_HOURS)) {
-        const phones = [...new Set(students.map((st) => st.phone).filter(Boolean))];
-        if (phones.length) {
+        const smsStudents = students.filter(
+          (st) => st.phone && st.user?.notifySms !== false
+        );
+        const phones = [...new Set(smsStudents.map((st) => st.phone).filter(Boolean))];
+        const pushIds = students
+          .map((st) => st.userId)
+          .filter((id): id is string => Boolean(id));
+        if (phones.length || pushIds.length) {
           await notificationService.notify({
             phones,
-            userIds: students.map((st) => st.userId!).filter(Boolean),
+            userIds: pushIds,
             title: "Machine arriving soon",
             body: `WeWash: machine reaches ${place} at ${timeLabel} (about 2 hours). Get laundry ready!`,
             url: "/student",

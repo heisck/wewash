@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { GoogleGlyph } from "@/components/pixel/auth-frame";
-import { authClient } from "@/lib/auth/client";
+import { authClient, safeSignOut } from "@/lib/auth/client";
 import { getEmailError } from "@/lib/utils/email";
 import {
   PixelButton,
@@ -14,10 +14,41 @@ import {
   PixelPasswordInput,
 } from "@/components/pixel/pixel-ui";
 
+/** After login: only students with a linked Student row may enter /student. */
+async function resolvePostLoginPath(preferred: string): Promise<string> {
+  try {
+    const res = await fetch("/api/v1/me", { credentials: "same-origin" });
+    const json = await res.json();
+    if (!res.ok || !json?.success) {
+      await safeSignOut();
+      throw new Error("Could not verify your account.");
+    }
+    const role = json.data?.user?.role as string | undefined;
+    const student = json.data?.student;
+    if (role === "ADMIN" || role === "SUPER_ADMIN") {
+      return preferred.startsWith("/admin") ? preferred : "/admin";
+    }
+    if (role === "STUDENT" && student && student.isActive !== false) {
+      const dest = preferred.startsWith("/student") || preferred.startsWith("/scan")
+        ? preferred
+        : "/student";
+      return dest;
+    }
+    await safeSignOut();
+    throw new Error(
+      "No student account is linked to this login. Ask WeWash admin to register you."
+    );
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("student account")) throw e;
+    throw e instanceof Error ? e : new Error("Could not verify your account.");
+  }
+}
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackURL = searchParams.get("callbackURL") || "/student";
+  const urlError = searchParams.get("error");
 
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -25,10 +56,24 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [forceEmailError, setForceEmailError] = useState(false);
 
+  useEffect(() => {
+    if (urlError === "no_student_profile") {
+      toast.error(
+        "No student account linked to that login. Ask admin to register you."
+      );
+    } else if (urlError === "student_only") {
+      toast.error("Student portal is for registered students only.");
+    }
+  }, [urlError]);
+
   const handleGoogle = async () => {
     setGoogleLoading(true);
     try {
-      await authClient.signIn.social({ provider: "google", callbackURL });
+      // Land on student; layout will kick out accounts without a student profile.
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: callbackURL.startsWith("/admin") ? "/student" : callbackURL,
+      });
     } catch {
       setGoogleLoading(false);
       toast.error("Could not start Google sign-in. Is it configured?");
@@ -43,11 +88,30 @@ export function LoginForm() {
       return;
     }
     setIsLoading(true);
-    const { error } = await authClient.signIn.email({ email: email.trim(), password });
-    setIsLoading(false);
-    if (error) return toast.error(error.message || "Invalid email or password.");
-    toast.success("Welcome back! Machine's all yours.");
-    router.push(callbackURL);
+    try {
+      const { error } = await authClient.signIn.email({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        toast.error(error.message || "Invalid email or password.");
+        return;
+      }
+      const path = await resolvePostLoginPath(callbackURL);
+      toast.success(
+        path.startsWith("/admin")
+          ? "Welcome back."
+          : "Welcome back! Machine's all yours."
+      );
+      router.push(path);
+    } catch (err) {
+      toast.error(
+        (err as Error).message ||
+          "No student account linked. Contact WeWash admin."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

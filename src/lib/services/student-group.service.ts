@@ -84,43 +84,92 @@ export class StudentGroupService {
     });
     if (!group) throw AppError.notFound("Student group", id);
 
-    // Unique rooms in this group (rotation is room-based; multiple students share a room)
-    const roomMap = new Map<
-      string,
-      {
-        id: string;
-        number: string;
-        block: string | null;
-        floor: number | null;
-        studentCount: number;
-        students: { id: string; firstName: string; lastName: string }[];
+    // Unique rooms in this group (rotation is room-based; multiple students share a room).
+    // Sources: students in group, rooms tagged with this block, rooms already on a schedule.
+    type RoomRow = {
+      id: string;
+      number: string;
+      block: string | null;
+      floor: number | null;
+      studentCount: number;
+      students: { id: string; firstName: string; lastName: string }[];
+    };
+    const roomMap = new Map<string, RoomRow>();
+
+    const ensureRoom = (
+      id: string,
+      number: string,
+      block: string | null,
+      floor: number | null
+    ) => {
+      if (!roomMap.has(id)) {
+        roomMap.set(id, {
+          id,
+          number,
+          block,
+          floor,
+          studentCount: 0,
+          students: [],
+        });
       }
-    >();
+      return roomMap.get(id)!;
+    };
 
     for (const s of group.students) {
       const roomId = s.roomId ?? s.room?.id;
       const number = s.roomNumber || s.room?.number;
       if (!roomId || !number) continue;
-      const existing = roomMap.get(roomId);
-      if (existing) {
-        existing.studentCount += 1;
-        existing.students.push({
-          id: s.id,
-          firstName: s.firstName,
-          lastName: s.lastName,
-        });
-      } else {
-        roomMap.set(roomId, {
-          id: roomId,
-          number,
-          block: s.room?.block ?? group.block,
-          floor: s.room?.floor ?? null,
-          studentCount: 1,
-          students: [
-            { id: s.id, firstName: s.firstName, lastName: s.lastName },
-          ],
-        });
-      }
+      const row = ensureRoom(
+        roomId,
+        number,
+        s.room?.block ?? group.block,
+        s.room?.floor ?? null
+      );
+      row.studentCount += 1;
+      row.students.push({
+        id: s.id,
+        firstName: s.firstName,
+        lastName: s.lastName,
+      });
+    }
+
+    // Rooms under this hostel with the same block (added via Rotation "Add room")
+    const blockRooms = await prisma.room.findMany({
+      where: {
+        hallId: group.hallId,
+        deletedAt: null,
+        isActive: true,
+        block: group.block,
+      },
+      select: {
+        id: true,
+        number: true,
+        block: true,
+        floor: true,
+      },
+    });
+    for (const r of blockRooms) {
+      ensureRoom(r.id, r.number, r.block, r.floor);
+    }
+
+    // Rooms already scheduled on any machine in this hostel (even if empty of students)
+    const scheduled = await prisma.machineSchedule.findMany({
+      where: {
+        isActive: true,
+        room: { hallId: group.hallId, deletedAt: null },
+      },
+      select: {
+        room: {
+          select: { id: true, number: true, block: true, floor: true },
+        },
+      },
+    });
+    for (const s of scheduled) {
+      const r = s.room;
+      if (!r) continue;
+      // Prefer same block; still include if already has group students
+      if (r.block && r.block !== group.block && !roomMap.has(r.id)) continue;
+      ensureRoom(r.id, r.number, r.block, r.floor);
     }
 
     const rooms = Array.from(roomMap.values()).sort((a, b) =>
@@ -128,6 +177,48 @@ export class StudentGroupService {
     );
 
     return { ...group, rooms };
+  }
+
+  /**
+   * Add (or revive) a room under this group's hostel/block for rotation.
+   * Does not change any machine schedule — admin assigns days separately.
+   * New roommates join an existing scheduled room without re-adding the room.
+   */
+  async addRoom(
+    user: User | null,
+    groupId: string,
+    roomNumber: string
+  ) {
+    requirePermission(user, "students", "update");
+    const number = roomNumber.trim();
+    if (!number) throw AppError.badRequest("Room number is required");
+
+    const group = await prisma.studentGroup.findFirst({
+      where: { id: groupId, deletedAt: null },
+    });
+    if (!group) throw AppError.notFound("Student group", groupId);
+
+    const floorInt = Number.parseInt(group.floor, 10);
+    const room = await prisma.room.upsert({
+      where: {
+        hallId_number: { hallId: group.hallId, number },
+      },
+      update: {
+        block: group.block,
+        floor: Number.isFinite(floorInt) ? floorInt : undefined,
+        isActive: true,
+        deletedAt: null,
+      },
+      create: {
+        hallId: group.hallId,
+        number,
+        block: group.block,
+        floor: Number.isFinite(floorInt) ? floorInt : undefined,
+        capacity: 2,
+      },
+    });
+
+    return room;
   }
 
   async create(user: User | null, data: CreateStudentGroupInput) {

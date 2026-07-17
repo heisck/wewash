@@ -405,6 +405,116 @@ export function SegmentBar({
   );
 }
 
+/**
+ * Time-until-rotation meter: big label on top, subtitle under it, then a row of
+ * boxes that empty and shift teal → amber → red as the deadline approaches.
+ */
+export function CountdownBoxes({
+  totalMs,
+  label,
+  sublabel,
+  /** Visual window in hours (default 24) — boxes map remaining time into this window */
+  windowHours = 24,
+  segments = 24,
+  className,
+}: {
+  totalMs: number;
+  label: string;
+  sublabel: string;
+  windowHours?: number;
+  segments?: number;
+  className?: string;
+}) {
+  const maxMs = Math.max(1, windowHours * 3_600_000);
+  const remaining = Math.max(0, totalMs);
+  const ratio = Math.min(1, remaining / maxMs);
+  const filled = Math.max(0, Math.ceil(ratio * segments));
+  const hoursLeft = remaining / 3_600_000;
+
+  // Urgency band for filled boxes
+  let band: "far" | "mid" | "near" | "now" = "far";
+  if (remaining <= 0) band = "now";
+  else if (hoursLeft <= 2) band = "near";
+  else if (hoursLeft <= 6) band = "mid";
+
+  return (
+    <div className={cn("space-y-3", className)}>
+      <div>
+        <p
+          className={cn(
+            "text-5xl font-black tabular-nums tracking-tight sm:text-6xl",
+            band === "now"
+              ? "text-teal-600 dark:text-teal-400"
+              : band === "near"
+                ? "text-rose-600 dark:text-rose-400"
+                : band === "mid"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-teal-600 dark:text-teal-400"
+          )}
+        >
+          {label}
+        </p>
+        <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-teal-900/50 dark:text-teal-100/50">
+          {sublabel}
+        </p>
+      </div>
+      <div
+        role="progressbar"
+        aria-label={sublabel}
+        aria-valuenow={Math.round(remaining / 60_000)}
+        aria-valuemin={0}
+        aria-valuemax={windowHours * 60}
+        className="flex h-4 w-full gap-[3px] sm:h-[18px]"
+      >
+        {Array.from({ length: segments }, (_, i) => {
+          const active = i < filled;
+          // Later boxes among the remaining window fade slightly (time approaching)
+          const depth = filled <= 1 ? 1 : (filled - i) / filled;
+          let cls = "bg-teal-900/10 dark:bg-teal-100/10";
+          if (active) {
+            if (band === "now") {
+              cls = "bg-teal-500 animate-pulse dark:bg-teal-400";
+            } else if (band === "near") {
+              // red, darker toward the tip (end of remaining)
+              cls =
+                depth > 0.66
+                  ? "bg-rose-600 dark:bg-rose-500"
+                  : depth > 0.33
+                    ? "bg-rose-500/80 dark:bg-rose-400/80"
+                    : "bg-rose-400/55 dark:bg-rose-300/50";
+            } else if (band === "mid") {
+              cls =
+                depth > 0.66
+                  ? "bg-amber-500 dark:bg-amber-400"
+                  : depth > 0.33
+                    ? "bg-amber-400/85 dark:bg-amber-300/70"
+                    : "bg-amber-300/55 dark:bg-amber-200/40";
+            } else {
+              // far — teal, fades toward the right edge of remaining
+              cls =
+                depth > 0.66
+                  ? "bg-teal-600 dark:bg-teal-400"
+                  : depth > 0.33
+                    ? "bg-teal-500/75 dark:bg-teal-400/65"
+                    : "bg-teal-400/45 dark:bg-teal-300/35";
+            }
+          }
+          return <span key={i} className={cn("h-full flex-1 border border-teal-900/5 dark:border-teal-100/5", cls)} />;
+        })}
+      </div>
+      <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/35 dark:text-teal-100/35">
+        {remaining <= 0
+          ? "Window open"
+          : hoursLeft > 6
+            ? "Plenty of time"
+            : hoursLeft > 2
+              ? "Getting closer"
+              : "Almost your turn"}
+      </p>
+    </div>
+  );
+}
+
 /* ─── Toggle (square switch) ─── */
 
 export function PixelToggle({

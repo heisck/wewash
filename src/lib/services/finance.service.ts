@@ -36,10 +36,17 @@ export class FinanceService {
   }
 
   private async getStudentIdForUser(user: User | null): Promise<string | undefined> {
-    if (!user || user.role !== "STUDENT") return undefined;
-    const student = await this.studentRepo.findByUserId(user.id);
-    if (!student) throw AppError.notFound("Student profile not found for user", user.id);
-    return student.id;
+    if (!user) return undefined;
+    // Admins don't have personal dues; students may need email→profile auto-link
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") return undefined;
+
+    let student = await this.studentRepo.findByUserId(user.id);
+    if (!student) {
+      const { studentService } = await import("./student.service");
+      const linked = await studentService.ensureStudentLinkedToUser(user);
+      if (linked) student = await this.studentRepo.findByUserId(user.id);
+    }
+    return student?.id;
   }
 
   // ─── Contract Operations ─────────────────────────────────────
@@ -192,11 +199,23 @@ export class FinanceService {
           weeklyAmount: true,
           roomNumber: true,
           userId: true,
+          groupId: true,
+          group: {
+            select: {
+              id: true,
+              name: true,
+              hallId: true,
+              floor: true,
+              block: true,
+              hall: { select: { id: true, code: true, name: true } },
+            },
+          },
           room: {
             select: {
               id: true,
               number: true,
-              hall: { select: { code: true, name: true } },
+              hallId: true,
+              hall: { select: { id: true, code: true, name: true } },
               machineSchedules: {
                 where: { isActive: true },
                 select: { dayOfWeek: true },
@@ -264,13 +283,16 @@ export class FinanceService {
     };
   }
 
-  /** Student: this week's dues progress (pieces + full status). */
+  /**
+   * Student: this week's dues progress (pieces + full status).
+   * Returns null when the login has no linked student profile (no 404 noise).
+   */
   async getMyWeekDues(user: User | null) {
     if (!user) throw AppError.unauthorized();
     const studentId = await this.getStudentIdForUser(user);
-    if (!studentId) throw AppError.notFound("Student profile not found for user", user.id);
+    if (!studentId) return null;
     const student = await this.studentRepo.findById(studentId);
-    if (!student) throw AppError.notFound("Student", studentId);
+    if (!student) return null;
     return getStudentWeekDues(studentId, money(student.weeklyAmount));
   }
 

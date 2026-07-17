@@ -28,12 +28,15 @@ export class FaultService {
 
   private async getStudentIdForUser(user: User | null): Promise<string | undefined> {
     if (!user) return undefined;
-    if (user.role === "STUDENT") {
-      const student = await this.studentRepo.findByUserId(user.id);
-      if (!student) throw AppError.notFound("Student profile not found for user", user.id);
-      return student.id;
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") return undefined;
+
+    let student = await this.studentRepo.findByUserId(user.id);
+    if (!student) {
+      const { studentService } = await import("./student.service");
+      const linked = await studentService.ensureStudentLinkedToUser(user);
+      if (linked) student = await this.studentRepo.findByUserId(user.id);
     }
-    return undefined;
+    return student?.id;
   }
 
   // ─── Fault Reports ───────────────────────────────────────────
@@ -48,7 +51,14 @@ export class FaultService {
     const where: Prisma.FaultReportWhereInput = {};
 
     const studentId = await this.getStudentIdForUser(user);
-    if (studentId) {
+    const isStaff =
+      user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+
+    if (!isStaff) {
+      // Non-staff only ever see their own reports (empty if no profile)
+      if (!studentId) {
+        return { data: [], total: 0 };
+      }
       where.reportedById = studentId;
     } else if (filters.studentId) {
       where.reportedById = filters.studentId;

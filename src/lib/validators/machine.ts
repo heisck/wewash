@@ -55,24 +55,38 @@ export type CreateMachineScheduleInput = z.infer<typeof createMachineScheduleSch
 
 // ─── Bulk Schedule (any number of rooms; admin can start with 1+) ──
 
-export const bulkMachineScheduleSchema = z.object({
-  machineId: idSchema,
-  schedules: z
-    .array(
-      z.object({
-        roomId: idSchema,
-        dayOfWeek: z.enum([
-          "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
-          "FRIDAY", "SATURDAY", "SUNDAY",
-        ]),
-        startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
-        endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
-        orderIndex: z.number().int().min(0).max(20),
-      })
-    )
-    .min(1, "At least one schedule slot is required")
-    .max(14, "Maximum 14 schedule entries per machine"),
-});
+export const bulkMachineScheduleSchema = z
+  .object({
+    machineId: idSchema,
+    schedules: z
+      .array(
+        z.object({
+          roomId: idSchema,
+          dayOfWeek: z.enum([
+            "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
+            "FRIDAY", "SATURDAY", "SUNDAY",
+          ]),
+          startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+          endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+          orderIndex: z.number().int().min(0).max(20),
+        })
+      )
+      .max(14, "Maximum 14 schedule entries per machine"),
+    /**
+     * When set, only these rooms are rewritten; slots for all other rooms
+     * on the machine are preserved (so editing one group never wipes another).
+     */
+    scopeRoomIds: z.array(idSchema).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.schedules.length === 0 && !(val.scopeRoomIds && val.scopeRoomIds.length)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one schedule slot is required (or clear scoped rooms)",
+        path: ["schedules"],
+      });
+    }
+  });
 
 export type BulkMachineScheduleInput = z.infer<typeof bulkMachineScheduleSchema>;
 

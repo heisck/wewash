@@ -76,6 +76,17 @@ export type StudentDTO = {
   room?: RoomDTO | null;
   group?: StudentGroupDTO | null;
   weeklyAmount?: string | number;
+  /** Confirmed COMPLETED sum this Mon–Sun week (list enrichment) */
+  paidThisWeek?: number;
+  remaining?: number;
+  isPaidInFull?: boolean;
+  /** Active rotation days for the student's room */
+  scheduleDays?: string[];
+  scheduleSlots?: Array<{
+    dayOfWeek: string;
+    startTime: string;
+    machineLabel?: string | null;
+  }>;
   profileImageUrl?: string | null;
   documentUrls?: string[];
   isActive: boolean;
@@ -125,12 +136,22 @@ export type PaymentReviewBoard = {
     isPaidInFull: boolean;
     roomNumber?: string | null;
     userId?: string | null;
+    groupId?: string | null;
     rotationDayPassed: boolean;
     scheduleDays: string[];
+    group?: {
+      id: string;
+      name: string;
+      hallId: string;
+      floor: string;
+      block: string;
+      hall?: { id: string; code: string; name: string } | null;
+    } | null;
     room?: {
       id: string;
       number: string;
-      hall?: { code: string; name: string } | null;
+      hallId?: string;
+      hall?: { id?: string; code: string; name: string } | null;
     } | null;
   }>;
   counts: { pending: number; unpaid: number; paid: number };
@@ -146,6 +167,16 @@ export type MachineScheduleDTO = {
   orderIndex: number;
   isActive: boolean;
   room?: RoomDTO | null;
+};
+
+export type MachineGroupBrief = {
+  id: string;
+  name: string;
+  hallId: string;
+  floor: string;
+  block: string;
+  /** At least one of this group's rooms is on the machine schedule */
+  scheduled: boolean;
 };
 
 export type MachineDTO = {
@@ -165,6 +196,8 @@ export type MachineDTO = {
   hall?: HallDTO | null;
   notes?: string | null;
   schedules?: MachineScheduleDTO[];
+  /** Student groups this machine serves / can serve (schedule + same hostel) */
+  groups?: MachineGroupBrief[];
   /** From schedule estimate (fallback) or QR scan room */
   currentRoom?: { id: string; number: string; block?: string | null; floor?: number | null; section?: string | null } | null;
   previousRoom?: { id: string; number: string } | null;
@@ -286,6 +319,8 @@ export type StudentRotation = {
   hall: { code: string; name: string } | null;
   myDay: string;
   myStartTime: string;
+  /** All wash days for the student's room */
+  slots?: Array<{ dayOfWeek: string; startTime: string }>;
   isHereNow: boolean;
   nextTurnAt: string;
   currentRoom: { id: string; number: string } | null;
@@ -301,7 +336,8 @@ export type ActiveSession = {
   dueBackAt: string;
   minutesLate: number | null;
   status: "IN_USE" | "RETURNED" | "EXPIRED";
-  machine: { id: string; serialNumber: string };
+  feedbackRating?: string | null;
+  machine: { id: string; serialNumber: string; name?: string | null; code?: string | null };
   room: { id: string; number: string } | null;
   hall: { code: string; name: string } | null;
 } | null;

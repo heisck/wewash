@@ -17,6 +17,8 @@ import {
   UsersRound,
   Plus,
   Loader2,
+  KeyRound,
+  Bell,
 } from "lucide-react";
 import {
   Dialog,
@@ -39,6 +41,12 @@ import {
   PixelTh,
 } from "@/components/pixel/pixel-ui";
 import { api, useApi, ApiError } from "@/lib/api/client";
+import { LocationFilterBar } from "@/components/admin/location-filter-bar";
+import { useAdminLocationFilter } from "@/hooks/use-admin-location-filter";
+import {
+  matchStudentLocation,
+  matchGroupLocation,
+} from "@/lib/admin/location-filter";
 import type {
   StudentDTO,
   HallDTO,
@@ -47,14 +55,51 @@ import type {
 
 type Tab = "roster" | "groups";
 
+const DAY_SHORT: Record<string, string> = {
+  MONDAY: "Mon",
+  TUESDAY: "Tue",
+  WEDNESDAY: "Wed",
+  THURSDAY: "Thu",
+  FRIDAY: "Fri",
+  SATURDAY: "Sat",
+  SUNDAY: "Sun",
+};
+
+const cedis = (n: string | number | undefined) => {
+  const v = Number(n ?? 0);
+  return `₵${(Number.isFinite(v) ? v : 0).toLocaleString("en-GH", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+function washLabel(s: StudentDTO): string {
+  const slots = s.scheduleSlots ?? [];
+  if (slots.length === 0) {
+    const days = s.scheduleDays ?? [];
+    if (!days.length) return "—";
+    return days.map((d) => DAY_SHORT[d] ?? d.slice(0, 3)).join(", ");
+  }
+  return slots
+    .map(
+      (sl) =>
+        `${DAY_SHORT[sl.dayOfWeek] ?? sl.dayOfWeek.slice(0, 3)} ${sl.startTime}`
+    )
+    .join(", ");
+}
+
 export default function AdminStudents() {
-  const { data: students, reload: reloadStudents } = useApi<StudentDTO[]>(
-    "/api/v1/students?limit=200"
-  );
+  const {
+    data: students,
+    reload: reloadStudents,
+    loading: studentsLoading,
+    error: studentsError,
+  } = useApi<StudentDTO[]>("/api/v1/students?limit=200");
   const { data: halls } = useApi<HallDTO[]>("/api/v1/halls?limit=100");
   const { data: groups, reload: reloadGroups } = useApi<StudentGroupDTO[]>(
     "/api/v1/student-groups?limit=200"
   );
+  const { filter } = useAdminLocationFilter();
 
   const [tab, setTab] = usePersistedState<Tab>("admin/students:tab", "roster");
   const [searchTerm, setSearchTerm] = usePersistedState(
@@ -78,11 +123,19 @@ export default function AdminStudents() {
     "admin/students:expandedRoomKey",
     null
   );
-  /** Student id while SMS reminder is in flight (not persisted) */
-  const [remindingId, setRemindingId] = useState<string | null>(null);
+  /** Student id while an SMS action is in flight (not persisted) */
+  const [busyId, setBusyId] = useState<string | null>(null);
+  /** Room key while room broadcast is in flight */
+  const [busyRoomKey, setBusyRoomKey] = useState<string | null>(null);
 
-  const list = students ?? [];
-  const groupList = groups ?? [];
+  const list = useMemo(
+    () => (students ?? []).filter((s) => matchStudentLocation(s, filter)),
+    [students, filter]
+  );
+  const groupList = useMemo(
+    () => (groups ?? []).filter((g) => matchGroupLocation(g, filter)),
+    [groups, filter]
+  );
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -230,12 +283,26 @@ export default function AdminStudents() {
   };
 
   const sendReminder = async (s: StudentDTO) => {
-    if (remindingId) return;
+    if (busyId) return;
     if (!s.phone?.trim()) {
       toast.error(`No phone number for ${s.firstName} — cannot send SMS.`);
       return;
     }
-    setRemindingId(s.id);
+    const due = Number(s.weeklyAmount ?? 0);
+    const remaining =
+      s.remaining != null
+        ? s.remaining
+        : Math.max(0, due - Number(s.paidThisWeek ?? 0));
+    const body =
+      due <= 0
+        ? `Hi ${s.firstName}, a note from WeWash. Open the app for your schedule. - WeWash`
+        : s.isPaidInFull
+          ? `Hi ${s.firstName}, thanks — this week's WeWash dues (${cedis(due)}) are paid in full. - WeWash`
+          : remaining > 0 && Number(s.paidThisWeek ?? 0) > 0
+            ? `Hi ${s.firstName}, GHS ${Number(s.paidThisWeek).toFixed(0)} confirmed — ${cedis(remaining)} left this week (fee ${cedis(due)}). Pay off-app and upload proof. - WeWash`
+            : `Hi ${s.firstName}, please pay ${cedis(due)} WeWash dues this week (Mon–Sun). Pay off-app and upload proof in the app. - WeWash`;
+
+    setBusyId(s.id);
     const toastId = toast.loading(`Sending SMS to ${s.firstName}…`);
     try {
       const result = await api.post<{
@@ -245,9 +312,9 @@ export default function AdminStudents() {
       }>("/api/v1/notifications", {
         target: "selected",
         studentIds: [s.id],
-        title: "Payment reminder",
-        body: `Hi ${s.firstName}, a friendly reminder about your WeWash weekly dues. Thank you!`,
-        channels: ["SMS"],
+        title: "WeWash payment reminder",
+        body,
+        channels: ["SMS", "PUSH"],
       });
       if ((result?.sms ?? 0) > 0) {
         toast.success(`SMS sent to ${s.firstName} (${s.phone}).`, {
@@ -265,7 +332,65 @@ export default function AdminStudents() {
         { id: toastId }
       );
     } finally {
-      setRemindingId(null);
+      setBusyId(null);
+    }
+  };
+
+  const resendWelcome = async (s: StudentDTO) => {
+    if (busyId) return;
+    if (!s.phone?.trim()) {
+      toast.error(`No phone for ${s.firstName} — cannot send welcome SMS.`);
+      return;
+    }
+    setBusyId(s.id);
+    const toastId = toast.loading(`Sending welcome SMS to ${s.firstName}…`);
+    try {
+      await api.post(`/api/v1/students/${s.id}/welcome`);
+      toast.success(`Welcome SMS sent to ${s.firstName} (${s.phone}).`, {
+        id: toastId,
+      });
+    } catch (e) {
+      toast.error(
+        (e as ApiError).message || `Could not send welcome to ${s.firstName}.`,
+        { id: toastId }
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const notifyRoom = async (roomKey: string, roommates: StudentDTO[]) => {
+    if (busyRoomKey) return;
+    const ids = roommates.map((s) => s.id);
+    if (!ids.length) return;
+    const label =
+      roommates[0]?.roomNumber ||
+      roommates[0]?.room?.number ||
+      "this room";
+    const wash = washLabel(roommates[0]!);
+    setBusyRoomKey(roomKey);
+    const toastId = toast.loading(`Notifying Room ${label}…`);
+    try {
+      const result = await api.post<{ sms?: number }>("/api/v1/notifications", {
+        target: "selected",
+        studentIds: ids,
+        title: "WeWash room notice",
+        body:
+          wash !== "—"
+            ? `Room ${label}: your wash slot is ${wash}. Open WeWash for details. - WeWash`
+            : `Room ${label}: check WeWash for your schedule and weekly dues. - WeWash`,
+        channels: ["SMS", "PUSH"],
+      });
+      toast.success(
+        `Notified Room ${label}${result?.sms != null ? ` (${result.sms} SMS)` : ""}.`,
+        { id: toastId }
+      );
+    } catch (e) {
+      toast.error((e as ApiError).message || "Could not notify room.", {
+        id: toastId,
+      });
+    } finally {
+      setBusyRoomKey(null);
     }
   };
 
@@ -315,6 +440,8 @@ export default function AdminStudents() {
         </div>
       </div>
 
+      <LocationFilterBar halls={halls} groups={groups} />
+
       <div className="flex gap-2">
         <button
           type="button"
@@ -352,7 +479,23 @@ export default function AdminStudents() {
             />
           </div>
 
-          {hierarchy.length === 0 ? (
+          {studentsLoading && !students ? (
+            <PixelCard className="flex items-center justify-center gap-2 py-12 text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading roster…
+            </PixelCard>
+          ) : studentsError ? (
+            <PixelCard className="py-12 text-center">
+              <p className="text-[10px] font-black uppercase tracking-widest text-red-700 dark:text-red-300">
+                Could not load students
+              </p>
+              <p className="mt-2 text-[11px] font-semibold text-teal-900/55">
+                {studentsError.message}
+              </p>
+              <PixelButton className="mt-4" size="sm" onClick={() => reloadStudents()}>
+                Retry
+              </PixelButton>
+            </PixelCard>
+          ) : hierarchy.length === 0 ? (
             <PixelCard className="py-12 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">
               {list.length === 0
                 ? "No students yet — create a group, then register."
@@ -391,55 +534,86 @@ export default function AdminStudents() {
                         const open = expandedRoomKey === room.key;
                         return (
                           <PixelCard key={room.key} className="overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpandedRoomKey(open ? null : room.key)
-                              }
-                              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-teal-600/5 dark:hover:bg-teal-400/5"
-                              aria-expanded={open}
-                            >
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-teal-900/15 dark:border-teal-100/20">
-                                {open ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black uppercase tracking-widest text-teal-950 dark:text-teal-50">
-                                  Room {room.roomLabel}
-                                </p>
-                                <p className="truncate text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
-                                  {room.students.length} roommate
-                                  {room.students.length === 1 ? "" : "s"}
-                                  {room.students.length
-                                    ? ` · ${room.students
-                                        .map((s) => s.firstName)
-                                        .join(", ")}`
-                                    : ""}
-                                </p>
-                              </div>
-                              <PixelBadge
-                                tone={
-                                  room.students.length > 1 ? "amber" : "slate"
+                            {/* Header row: expand control + notify as siblings (no nested buttons) */}
+                            <div className="flex items-stretch">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedRoomKey(open ? null : room.key)
                                 }
+                                className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-teal-600/5 dark:hover:bg-teal-400/5"
+                                aria-expanded={open}
                               >
-                                {room.students.length > 1
-                                  ? "Roommates"
-                                  : "Single"}
-                              </PixelBadge>
-                            </button>
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-teal-900/15 dark:border-teal-100/20">
+                                  {open ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-black uppercase tracking-widest text-teal-950 dark:text-teal-50">
+                                    Room {room.roomLabel}
+                                  </p>
+                                  <p className="truncate text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
+                                    {room.students.length} roommate
+                                    {room.students.length === 1 ? "" : "s"}
+                                    {room.students.length
+                                      ? ` · ${room.students
+                                          .map((s) => s.firstName)
+                                          .join(", ")}`
+                                      : ""}
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  {washLabel(room.students[0]!) !== "—" && (
+                                    <span className="hidden text-[9px] font-bold uppercase tracking-wider text-teal-900/45 sm:inline dark:text-teal-100/45">
+                                      {washLabel(room.students[0]!)}
+                                    </span>
+                                  )}
+                                  <PixelBadge
+                                    tone={
+                                      room.students.length > 1
+                                        ? "amber"
+                                        : "slate"
+                                    }
+                                  >
+                                    {room.students.length > 1
+                                      ? "Roommates"
+                                      : "Single"}
+                                  </PixelBadge>
+                                </div>
+                              </button>
+                              <div className="flex shrink-0 items-center border-l-2 border-teal-900/10 pr-3 dark:border-teal-100/10">
+                                <PixelButton
+                                  size="sm"
+                                  variant="ghost"
+                                  type="button"
+                                  disabled={!!busyRoomKey}
+                                  title="SMS everyone in this room"
+                                  onClick={() =>
+                                    void notifyRoom(room.key, room.students)
+                                  }
+                                >
+                                  {busyRoomKey === room.key ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Bell className="h-3.5 w-3.5" />
+                                  )}
+                                </PixelButton>
+                              </div>
+                            </div>
 
                             {open && (
                               <div className="border-t-2 border-teal-900/10 dark:border-teal-100/10">
                                 <div className="overflow-x-auto">
-                                  <table className="w-full min-w-180 text-left">
+                                  <table className="w-full min-w-200 text-left">
                                     <thead>
                                       <tr className="border-b border-teal-900/10 dark:border-teal-100/10">
                                         <PixelTh>Student</PixelTh>
-                                        <PixelTh>ID</PixelTh>
                                         <PixelTh>Phone</PixelTh>
+                                        <PixelTh>Wash day</PixelTh>
+                                        <PixelTh>This week</PixelTh>
                                         <PixelTh>Status</PixelTh>
                                         <PixelTh className="text-right">
                                           Actions
@@ -447,77 +621,106 @@ export default function AdminStudents() {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-teal-900/5 dark:divide-teal-100/5">
-                                      {room.students.map((s) => (
-                                        <tr
-                                          key={s.id}
-                                          className="bg-teal-600/3 dark:bg-teal-400/3"
-                                        >
-                                          <PixelTd className="font-black">
-                                            {s.firstName} {s.lastName}
-                                            {s.email && (
+                                      {room.students.map((s) => {
+                                        const due = Number(s.weeklyAmount ?? 0);
+                                        const paidFull =
+                                          s.isPaidInFull === true || due <= 0;
+                                        return (
+                                          <tr
+                                            key={s.id}
+                                            className="bg-teal-600/3 dark:bg-teal-400/3"
+                                          >
+                                            <PixelTd className="font-black">
+                                              {s.firstName} {s.lastName}
                                               <p className="text-[9px] font-semibold text-teal-900/45 dark:text-teal-100/45">
-                                                {s.email}
+                                                {s.studentId}
+                                                {s.email ? ` · ${s.email}` : ""}
                                               </p>
-                                            )}
-                                          </PixelTd>
-                                          <PixelTd className="text-[10px] text-teal-900/50 dark:text-teal-100/50">
-                                            {s.studentId}
-                                          </PixelTd>
-                                          <PixelTd className="font-mono text-[10px]">
-                                            {s.phone}
-                                          </PixelTd>
-                                          <PixelTd>
-                                            <PixelBadge
-                                              tone={
-                                                s.isActive ? "green" : "slate"
-                                              }
-                                            >
-                                              {s.isActive
-                                                ? "ACTIVE"
-                                                : "INACTIVE"}
-                                            </PixelBadge>
-                                          </PixelTd>
-                                          <PixelTd className="text-right">
-                                            <div className="flex justify-end gap-2">
-                                              <Link
-                                                href="/admin/payments"
-                                                title="Open payments — use Open on a student to manage their panel"
-                                                className="inline-flex h-8 items-center justify-center gap-1 border-2 border-teal-900/25 bg-transparent px-2 text-[10px] font-black uppercase tracking-widest text-teal-900 shadow-pixel-sm transition hover:bg-teal-600/10 dark:border-teal-100/25 dark:text-teal-100"
-                                              >
-                                                <CreditCard className="h-3 w-3" />
-                                                Payments
-                                              </Link>
-                                              <PixelButton
-                                                size="sm"
-                                                variant="ghost"
-                                                disabled={!!remindingId}
-                                                aria-busy={
-                                                  remindingId === s.id
-                                                }
-                                                onClick={() =>
-                                                  void sendReminder(s)
-                                                }
-                                                title="Send SMS reminder"
-                                              >
-                                                {remindingId === s.id ? (
-                                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                  <Send className="h-3.5 w-3.5" />
-                                                )}
-                                              </PixelButton>
-                                              <PixelButton
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={() =>
-                                                  void removeStudent(s)
+                                            </PixelTd>
+                                            <PixelTd className="font-mono text-[10px]">
+                                              {s.phone || "—"}
+                                            </PixelTd>
+                                            <PixelTd className="text-[10px] font-bold text-teal-900/70 dark:text-teal-100/70">
+                                              {washLabel(s)}
+                                            </PixelTd>
+                                            <PixelTd>
+                                              {due <= 0 ? (
+                                                <PixelBadge tone="slate">
+                                                  No fee
+                                                </PixelBadge>
+                                              ) : paidFull ? (
+                                                <PixelBadge tone="green">
+                                                  Paid {cedis(due)}
+                                                </PixelBadge>
+                                              ) : (
+                                                <PixelBadge tone="amber">
+                                                  {cedis(s.remaining ?? due)} left
+                                                </PixelBadge>
+                                              )}
+                                            </PixelTd>
+                                            <PixelTd>
+                                              <PixelBadge
+                                                tone={
+                                                  s.isActive ? "green" : "slate"
                                                 }
                                               >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                              </PixelButton>
-                                            </div>
-                                          </PixelTd>
-                                        </tr>
-                                      ))}
+                                                {s.isActive
+                                                  ? "ACTIVE"
+                                                  : "INACTIVE"}
+                                              </PixelBadge>
+                                            </PixelTd>
+                                            <PixelTd className="text-right">
+                                              <div className="flex flex-wrap justify-end gap-2">
+                                                <Link
+                                                  href={`/admin/payments?student=${s.id}`}
+                                                  title="Open this student on Payments"
+                                                  className="inline-flex h-8 items-center justify-center gap-1 border-2 border-teal-900/25 bg-transparent px-2 text-[10px] font-black uppercase tracking-widest text-teal-900 shadow-pixel-sm transition hover:bg-teal-600/10 dark:border-teal-100/25 dark:text-teal-100"
+                                                >
+                                                  <CreditCard className="h-3 w-3" />
+                                                  Payments
+                                                </Link>
+                                                <PixelButton
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  disabled={!!busyId}
+                                                  aria-busy={busyId === s.id}
+                                                  onClick={() =>
+                                                    void sendReminder(s)
+                                                  }
+                                                  title="Send payment SMS reminder"
+                                                >
+                                                  {busyId === s.id ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                  ) : (
+                                                    <Send className="h-3.5 w-3.5" />
+                                                  )}
+                                                </PixelButton>
+                                                <PixelButton
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  disabled={!!busyId}
+                                                  onClick={() =>
+                                                    void resendWelcome(s)
+                                                  }
+                                                  title="Resend welcome / login SMS"
+                                                >
+                                                  <KeyRound className="h-3.5 w-3.5" />
+                                                </PixelButton>
+                                                <PixelButton
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  onClick={() =>
+                                                    void removeStudent(s)
+                                                  }
+                                                  title="Remove student"
+                                                >
+                                                  <Trash2 className="h-3.5 w-3.5" />
+                                                </PixelButton>
+                                              </div>
+                                            </PixelTd>
+                                          </tr>
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>
@@ -602,7 +805,7 @@ export default function AdminStudents() {
       <RegisterDialog
         open={registerOpen}
         onClose={() => setRegisterOpen(false)}
-        groups={groupList}
+        groups={groups ?? []}
         onDone={reloadAll}
       />
       <CreateGroupDialog
@@ -839,7 +1042,7 @@ function RegisterDialog({
         roomNumber: roomNumber.trim(),
       });
       toast.success(
-        `${firstName} registered in ${selectedGroup?.name ?? "group"}.`
+        `${firstName} registered in ${selectedGroup?.name ?? "group"}. Welcome SMS sent to ${phone}.`
       );
       onDone();
       onClose();

@@ -96,6 +96,7 @@ export class ScanService {
       dueBackAt: session.dueBackAt.toISOString(),
       minutesLate: session.minutesLate,
       status: session.status,
+      feedbackRating: session.feedbackRating ?? null,
       machine: {
         id: session.machine.id,
         serialNumber: session.machine.serialNumber,
@@ -107,6 +108,46 @@ export class ScanService {
       hall: session.room?.hall
         ? { code: session.room.hall.code, name: session.room.hall.name }
         : null,
+    };
+  }
+
+  /**
+   * Student rates the laundry experience while they hold the machine.
+   * Stored on the active WashSession.
+   */
+  async submitFeedback(
+    user: User | null,
+    rating: "frown" | "meh" | "smile" | "heart" | "star"
+  ) {
+    if (!user) throw AppError.unauthorized();
+    const student = await prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!student) throw AppError.badRequest("No student profile");
+
+    const session = await prisma.washSession.findFirst({
+      where: {
+        studentId: student.id,
+        status: "IN_USE",
+        dueBackAt: { gt: new Date() },
+      },
+      orderBy: { scannedAt: "desc" },
+    });
+    if (!session) {
+      throw AppError.badRequest(
+        "Scan the machine first, then leave feedback during your wash window."
+      );
+    }
+
+    const updated = await prisma.washSession.update({
+      where: { id: session.id },
+      data: { feedbackRating: rating, feedbackAt: new Date() },
+    });
+    return {
+      id: updated.id,
+      feedbackRating: updated.feedbackRating,
+      feedbackAt: updated.feedbackAt?.toISOString() ?? null,
     };
   }
 

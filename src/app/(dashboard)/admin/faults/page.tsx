@@ -26,7 +26,15 @@ import {
   SectionTitle,
 } from "@/components/pixel/pixel-ui";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { FaultDTO, MachineDTO } from "@/lib/types/client";
+import { LocationFilterBar } from "@/components/admin/location-filter-bar";
+import { useAdminLocationFilter } from "@/hooks/use-admin-location-filter";
+import { matchMachineLocation } from "@/lib/admin/location-filter";
+import type {
+  FaultDTO,
+  HallDTO,
+  MachineDTO,
+  StudentGroupDTO,
+} from "@/lib/types/client";
 
 type FaultSeverity = FaultDTO["severity"];
 type FaultStatus = FaultDTO["status"];
@@ -99,6 +107,11 @@ export default function AdminFaults() {
     "/api/v1/faults?limit=100"
   );
   const { data: machines } = useApi<MachineDTO[]>("/api/v1/machines?limit=100");
+  const { data: halls } = useApi<HallDTO[]>("/api/v1/halls?limit=100");
+  const { data: groups } = useApi<StudentGroupDTO[]>(
+    "/api/v1/student-groups?limit=200"
+  );
+  const { filter } = useAdminLocationFilter();
 
   const [statusFilter, setStatusFilter] = usePersistedState(
     "admin/faults:statusFilter",
@@ -118,11 +131,22 @@ export default function AdminFaults() {
   );
   const [saving, setSaving] = useState(false);
 
+  const machinesById = useMemo(() => {
+    const map = new Map<string, MachineDTO>();
+    for (const m of machines ?? []) map.set(m.id, m);
+    return map;
+  }, [machines]);
+
   const selectedFault = selectedFaultId
     ? (faults ?? []).find((f) => f.id === selectedFaultId) ?? null
     : null;
 
-  const list = faults ?? [];
+  const list = useMemo(() => {
+    return (faults ?? []).filter((f) => {
+      const m = machinesById.get(f.machineId);
+      return matchMachineLocation(m, filter);
+    });
+  }, [faults, machinesById, filter]);
 
   const filtered = useMemo(() => {
     if (statusFilter === "all") return list;
@@ -154,9 +178,11 @@ export default function AdminFaults() {
 
   const faultyMachines = useMemo(() => {
     return (machines ?? []).filter(
-      (m) => m.status === "FAULTY" || m.status === "MAINTENANCE"
+      (m) =>
+        (m.status === "FAULTY" || m.status === "MAINTENANCE") &&
+        matchMachineLocation(m, filter)
     );
-  }, [machines]);
+  }, [machines, filter]);
 
   const setStatus = async (id: string, status: FaultStatus) => {
     try {
@@ -218,6 +244,8 @@ export default function AdminFaults() {
           <option value="RESOLVED">Resolved</option>
         </PixelSelect>
       </div>
+
+      <LocationFilterBar halls={halls} groups={groups} />
 
       <div className="space-y-4">
         <SectionTitle text="TICKETS" />

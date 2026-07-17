@@ -18,7 +18,7 @@ import { AuthFrame, GoogleGlyph } from "@/components/pixel/auth-frame";
 import { DashboardShell } from "@/components/pixel/dashboard-shell";
 import { OtpBoxes } from "@/components/auth/otp-boxes";
 import { AUTH_OTP } from "@/lib/config/constants";
-import { authClient, useSession } from "@/lib/auth/client";
+import { authClient, safeSignOut, useSession } from "@/lib/auth/client";
 import { otpErrorMessage } from "@/lib/auth/otp-errors";
 import { getEmailError } from "@/lib/utils/email";
 import { toE164Ghana } from "@/lib/utils/phone-client";
@@ -399,7 +399,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {user && !isAdmin && (
             <button
               type="button"
-              onClick={() => authClient.signOut()}
+              onClick={() => void safeSignOut().then(() => router.refresh())}
               className="mt-4 w-full text-[10px] font-black uppercase tracking-widest text-teal-700 hover:underline dark:text-teal-300"
             >
               Sign out {user.email}
@@ -426,8 +426,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       userMeta={user!.email}
       userInitials={initials}
       onLogout={async () => {
-        await authClient.signOut();
-        router.push("/admin/login");
+        await safeSignOut();
+        router.replace("/admin/login");
       }}
     >
       {children}

@@ -35,8 +35,17 @@ import {
   StatTile,
 } from "@/components/pixel/pixel-ui";
 import { usePersistedState } from "@/hooks/use-persisted-state";
+import { LocationFilterBar } from "@/components/admin/location-filter-bar";
+import { useAdminLocationFilter } from "@/hooks/use-admin-location-filter";
+import { matchStudentLocation } from "@/lib/admin/location-filter";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { PaymentDTO, PaymentReviewBoard, StudentDTO } from "@/lib/types/client";
+import type {
+  HallDTO,
+  PaymentDTO,
+  PaymentReviewBoard,
+  StudentDTO,
+  StudentGroupDTO,
+} from "@/lib/types/client";
 
 const cedis = (n: string | number) => {
   const v = typeof n === "string" ? Number(n) : n;
@@ -48,6 +57,11 @@ export default function AdminPaymentsPage() {
     "/api/v1/payments/review-board"
   );
   const { data: students } = useApi<StudentDTO[]>("/api/v1/students?limit=200");
+  const { data: halls } = useApi<HallDTO[]>("/api/v1/halls?limit=100");
+  const { data: groups } = useApi<StudentGroupDTO[]>(
+    "/api/v1/student-groups?limit=200"
+  );
+  const { filter } = useAdminLocationFilter();
 
   const [recordOpen, setRecordOpen] = usePersistedState("admin/payments:recordOpen", false);
   const [reviewId, setReviewId] = useState<string | null>(null);
@@ -55,8 +69,37 @@ export default function AdminPaymentsPage() {
   const [focusStudentId, setFocusStudentId] = useState<string | null>(null);
   const [studentQuery, setStudentQuery] = useState("");
 
+  // Deep-link from Students roster: /admin/payments?student=<id>
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sid = new URLSearchParams(window.location.search).get("student");
+    if (sid) setFocusStudentId(sid);
+  }, []);
+
+  const studentsById = useMemo(() => {
+    const map = new Map<string, StudentDTO>();
+    for (const s of students ?? []) map.set(s.id, s);
+    return map;
+  }, [students]);
+
   const pending = board?.pendingProofs ?? [];
-  const unpaid = board?.unpaidThisWeek ?? [];
+  const unpaidAll = board?.unpaidThisWeek ?? [];
+
+  const unpaid = useMemo(
+    () => unpaidAll.filter((s) => matchStudentLocation(s, filter)),
+    [unpaidAll, filter]
+  );
+
+  const filteredPending = useMemo(() => {
+    return pending.filter((p) => {
+      const st =
+        studentsById.get(p.studentId) ??
+        (p.student as StudentDTO | undefined) ??
+        null;
+      return matchStudentLocation(st, filter);
+    });
+  }, [pending, filter, studentsById]);
+
   const review = pending.find((p) => p.id === reviewId) ?? null;
   const focusStudent =
     (students ?? []).find((s) => s.id === focusStudentId) ??
@@ -64,28 +107,67 @@ export default function AdminPaymentsPage() {
   const focusPending = pending.filter((p) => p.studentId === focusStudentId);
 
   const sortedPending = useMemo(() => {
-    return [...pending].sort((a, b) => {
+    return [...filteredPending].sort((a, b) => {
       const ra = a.student?.room?.number ?? "";
       const rb = b.student?.room?.number ?? "";
       const t = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       if (t !== 0) return t;
       return String(ra).localeCompare(String(rb), undefined, { numeric: true });
     });
-  }, [pending]);
+  }, [filteredPending]);
+
+  /** Unpaid grouped by student group for hierarchical browse */
+  const unpaidByGroup = useMemo(() => {
+    type Bucket = {
+      key: string;
+      title: string;
+      subtitle: string;
+      rows: typeof unpaid;
+    };
+    const map = new Map<string, Bucket>();
+    for (const s of unpaid) {
+      const gid = s.groupId ?? s.group?.id ?? "__ungrouped__";
+      if (!map.has(gid)) {
+        map.set(gid, {
+          key: gid,
+          title:
+            gid === "__ungrouped__"
+              ? "Ungrouped"
+              : s.group?.name ?? "Other group",
+          subtitle:
+            gid === "__ungrouped__"
+              ? "No group assigned"
+              : s.group
+                ? `${s.group.hall?.code ?? "Hall"} · Fl. ${s.group.floor} · Bl. ${s.group.block}`
+                : "",
+          rows: [],
+        });
+      }
+      map.get(gid)!.rows.push(s);
+    }
+    return [...map.values()].sort((a, b) => a.title.localeCompare(b.title));
+  }, [unpaid]);
+
+  const filteredStudents = useMemo(
+    () => (students ?? []).filter((s) => matchStudentLocation(s, filter)),
+    [students, filter]
+  );
 
   const studentHits = useMemo(() => {
     const q = studentQuery.trim().toLowerCase();
-    if (!q) return (students ?? []).slice(0, 8);
-    return (students ?? [])
+    const pool = filteredStudents;
+    if (!q) return pool.slice(0, 8);
+    return pool
       .filter(
         (s) =>
           `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
           s.studentId.toLowerCase().includes(q) ||
           (s.room?.number ?? s.roomNumber ?? "").toLowerCase().includes(q) ||
+          (s.group?.name ?? "").toLowerCase().includes(q) ||
           s.phone.includes(q)
       )
       .slice(0, 12);
-  }, [students, studentQuery]);
+  }, [filteredStudents, studentQuery]);
 
   const confirm = async (p: PaymentDTO) => {
     try {
@@ -142,12 +224,14 @@ export default function AdminPaymentsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageTitle
           text="PAYMENTS"
-          sub="Approve proofs · manual record · open a student"
+          sub="Filter by hostel/group · approve proofs · open a student"
         />
         <PixelButton variant="outline" onClick={() => setRecordOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> Manual record
         </PixelButton>
       </div>
+
+      <LocationFilterBar halls={halls} groups={groups} />
 
       {/* Find student → open their panel */}
       <PixelCard className="p-4">
@@ -210,20 +294,28 @@ export default function AdminPaymentsPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile
           label="Awaiting your check"
-          value={String(board?.counts.pending ?? 0)}
-          sub="Student proofs to verify"
+          value={String(sortedPending.length)}
+          sub={
+            filter.hallId || filter.groupId || filter.floor || filter.block
+              ? "In this location filter"
+              : "Student proofs to verify"
+          }
           icon={<Clock />}
         />
         <StatTile
           label="Not paid in full"
-          value={String(board?.counts.unpaid ?? 0)}
-          sub="Confirmed total still under weekly fee"
+          value={String(unpaid.length)}
+          sub={
+            filter.hallId || filter.groupId || filter.floor || filter.block
+              ? "In this location filter"
+              : "Confirmed total still under weekly fee"
+          }
           icon={<Banknote />}
         />
         <StatTile
           label="Paid in full"
           value={String(board?.counts.paid ?? 0)}
-          sub="Confirmed total ≥ weekly fee"
+          sub="All hostels (unfiltered total)"
           icon={<CheckCircle2 />}
         />
       </div>
@@ -304,64 +396,100 @@ export default function AdminPaymentsPage() {
         )}
       </div>
 
-      {/* ── Not paid in full ── */}
-      <div className="space-y-3">
-        <SectionTitle text="NOT PAID IN FULL (BY ROOM)" />
-        <PixelCard className="overflow-x-auto">
-          {unpaid.length === 0 ? (
-            <p className="py-10 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
-              Everyone with a weekly fee is paid in full this week.
-            </p>
-          ) : (
-            <table className="w-full min-w-[860px] text-left">
-              <thead>
-                <tr className="border-b-2 border-teal-900/15">
-                  <PixelTh className="pt-4">Room</PixelTh>
-                  <PixelTh className="pt-4">Student</PixelTh>
-                  <PixelTh className="pt-4">Weekly fee</PixelTh>
-                  <PixelTh className="pt-4">Paid</PixelTh>
-                  <PixelTh className="pt-4">Remaining</PixelTh>
-                  <PixelTh className="pt-4">Actions</PixelTh>
-                </tr>
-              </thead>
-              <tbody className="divide-y-2 divide-teal-900/5">
-                {unpaid.map((s) => (
-                  <tr key={s.id}>
-                    <PixelTd className="font-black">
-                      {s.room?.number ?? s.roomNumber ?? "—"}
-                    </PixelTd>
-                    <PixelTd>
-                      {s.firstName} {s.lastName}
-                      <span className="mt-0.5 block text-[9px] text-teal-900/40">{s.studentId}</span>
-                    </PixelTd>
-                    <PixelTd className="font-black tabular-nums">{cedis(s.weeklyAmount)}</PixelTd>
-                    <PixelTd className="tabular-nums">{cedis(s.paidThisWeek ?? 0)}</PixelTd>
-                    <PixelTd className="font-black tabular-nums text-amber-600">
-                      {cedis(s.remaining ?? s.weeklyAmount)}
-                    </PixelTd>
-                    <PixelTd>
-                      <div className="flex flex-wrap gap-1">
-                        <PixelButton size="sm" type="button" onClick={() => openStudent(s.id)}>
-                          <UserRound className="h-3 w-3" /> Open
-                        </PixelButton>
-                        <PixelButton
-                          size="sm"
-                          variant="outline"
-                          type="button"
-                          onClick={() =>
-                            remind(s.id, s.firstName, s.remaining ?? s.weeklyAmount)
-                          }
-                        >
-                          <MessageSquare className="h-3 w-3" /> Remind
-                        </PixelButton>
-                      </div>
-                    </PixelTd>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </PixelCard>
+      {/* ── Not paid in full — by group ── */}
+      <div className="space-y-4">
+        <SectionTitle text="NOT PAID IN FULL (BY GROUP)" />
+        {unpaid.length === 0 ? (
+          <PixelCard className="py-10 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+            Everyone with a weekly fee is paid in full this week
+            {filter.hallId || filter.groupId || filter.floor || filter.block
+              ? " (in this filter)."
+              : "."}
+          </PixelCard>
+        ) : (
+          unpaidByGroup.map((bucket) => (
+            <div key={bucket.key} className="space-y-2">
+              <div className="flex flex-wrap items-end justify-between gap-2 border-b-2 border-teal-900/15 pb-2 dark:border-teal-100/15">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-teal-950 dark:text-teal-50">
+                    {bucket.title}
+                  </h3>
+                  {bucket.subtitle && (
+                    <p className="text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
+                      {bucket.subtitle}
+                    </p>
+                  )}
+                </div>
+                <PixelBadge tone="amber">
+                  {bucket.rows.length} unpaid
+                </PixelBadge>
+              </div>
+              <PixelCard className="overflow-x-auto">
+                <table className="w-full min-w-[860px] text-left">
+                  <thead>
+                    <tr className="border-b-2 border-teal-900/15">
+                      <PixelTh className="pt-4">Room</PixelTh>
+                      <PixelTh className="pt-4">Student</PixelTh>
+                      <PixelTh className="pt-4">Weekly fee</PixelTh>
+                      <PixelTh className="pt-4">Paid</PixelTh>
+                      <PixelTh className="pt-4">Remaining</PixelTh>
+                      <PixelTh className="pt-4">Actions</PixelTh>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y-2 divide-teal-900/5">
+                    {bucket.rows.map((s) => (
+                      <tr key={s.id}>
+                        <PixelTd className="font-black">
+                          {s.room?.number ?? s.roomNumber ?? "—"}
+                        </PixelTd>
+                        <PixelTd>
+                          {s.firstName} {s.lastName}
+                          <span className="mt-0.5 block text-[9px] text-teal-900/40">
+                            {s.studentId}
+                          </span>
+                        </PixelTd>
+                        <PixelTd className="font-black tabular-nums">
+                          {cedis(s.weeklyAmount)}
+                        </PixelTd>
+                        <PixelTd className="tabular-nums">
+                          {cedis(s.paidThisWeek ?? 0)}
+                        </PixelTd>
+                        <PixelTd className="font-black tabular-nums text-amber-600">
+                          {cedis(s.remaining ?? s.weeklyAmount)}
+                        </PixelTd>
+                        <PixelTd>
+                          <div className="flex flex-wrap gap-1">
+                            <PixelButton
+                              size="sm"
+                              type="button"
+                              onClick={() => openStudent(s.id)}
+                            >
+                              <UserRound className="h-3 w-3" /> Open
+                            </PixelButton>
+                            <PixelButton
+                              size="sm"
+                              variant="outline"
+                              type="button"
+                              onClick={() =>
+                                remind(
+                                  s.id,
+                                  s.firstName,
+                                  s.remaining ?? s.weeklyAmount
+                                )
+                              }
+                            >
+                              <MessageSquare className="h-3 w-3" /> Remind
+                            </PixelButton>
+                          </div>
+                        </PixelTd>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </PixelCard>
+            </div>
+          ))
+        )}
       </div>
 
       <ReviewDialog
@@ -385,7 +513,7 @@ export default function AdminPaymentsPage() {
 
       <RecordPaymentDialog
         open={recordOpen}
-        students={students ?? []}
+        students={filteredStudents}
         presetStudentId={null}
         onClose={() => setRecordOpen(false)}
         onDone={() => {

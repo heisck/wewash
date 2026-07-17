@@ -6,6 +6,12 @@ import { requirePermission } from "@/lib/auth/permissions";
 import { CreateStudentInput, UpdateStudentInput, StudentFilterInput } from "@/lib/validators";
 import { PaginationInput, toSkipTake } from "@/lib/utils/pagination";
 import { notificationService } from "./notification.service";
+import {
+  money,
+  isPaidInFull,
+  remainingDues,
+  sumCompletedPaidThisWeek,
+} from "./weekly-dues";
 
 export class StudentService {
   private readonly repo: StudentRepository;
@@ -57,21 +63,111 @@ export class StudentService {
       where,
       orderBy: { createdAt: "desc" },
       include: {
-        room: { include: { hall: true } },
+        room: {
+          include: {
+            hall: true,
+            machineSchedules: {
+              where: { isActive: true },
+              select: {
+                dayOfWeek: true,
+                startTime: true,
+                machine: { select: { serialNumber: true, code: true } },
+              },
+              orderBy: { orderIndex: "asc" },
+            },
+          },
+        },
         group: { include: { hall: true } },
       },
     });
 
-    return { data, total };
+    // Attach this week's confirmed dues so the admin roster can show paid/remaining.
+    const paidMap = await sumCompletedPaidThisWeek(data.map((s) => s.id));
+    const enriched = data.map((s) => {
+      const weeklyAmount = money(s.weeklyAmount);
+      const paidThisWeek = paidMap.get(s.id) ?? 0;
+      const schedules =
+        (
+          s as {
+            room?: {
+              machineSchedules?: Array<{
+                dayOfWeek: string;
+                startTime: string;
+                machine?: { serialNumber?: string | null; code?: string | null } | null;
+              }>;
+            } | null;
+          }
+        ).room?.machineSchedules ?? [];
+      return {
+        ...s,
+        weeklyAmount,
+        paidThisWeek,
+        remaining: remainingDues(paidThisWeek, weeklyAmount),
+        isPaidInFull: isPaidInFull(paidThisWeek, weeklyAmount),
+        scheduleDays: schedules.map((ms) => ms.dayOfWeek),
+        scheduleSlots: schedules.map((ms) => ({
+          dayOfWeek: ms.dayOfWeek,
+          startTime: ms.startTime,
+          machineLabel: ms.machine?.serialNumber || ms.machine?.code || null,
+        })),
+      };
+    });
+
+    return { data: enriched as unknown as Student[], total };
   }
 
   /**
    * Get the current user's own student profile (with room + hall).
    * Returns null if the signed-in user has no student record yet.
+   * Auto-links a student row that matches the login email and has no userId yet
+   * (common when admin registered the student before they first signed in).
    */
   async getMyProfile(user: User | null) {
     if (!user) throw AppError.unauthorized("Not signed in");
+    await this.ensureStudentLinkedToUser(user);
     return this.repo.findByUserIdDetailed(user.id);
+  }
+
+  /**
+   * If this login has no Student.userId yet, attach the student record that
+   * uses the same email (case-insensitive), when it is free to claim.
+   * Never links or demotes ADMIN / SUPER_ADMIN accounts.
+   */
+  async ensureStudentLinkedToUser(user: User | null): Promise<string | null> {
+    if (!user?.id) return null;
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") return null;
+
+    const existing = await this.repo.findByUserId(user.id);
+    if (existing) return existing.id;
+
+    const email = (user.email || "").trim();
+    if (!email) return null;
+
+    const { prisma } = await import("@/lib/db/prisma");
+    const orphan = await prisma.student.findFirst({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        email: { equals: email, mode: "insensitive" },
+        OR: [{ userId: null }, { userId: user.id }],
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!orphan) return null;
+    if (orphan.userId && orphan.userId !== user.id) return null;
+
+    await prisma.student.update({
+      where: { id: orphan.id },
+      data: { userId: user.id },
+    });
+    // Keep role STUDENT for portal access
+    if (user.role !== "STUDENT") {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { role: "STUDENT" },
+      });
+    }
+    return orphan.id;
   }
 
   /**
@@ -316,8 +412,9 @@ export class StudentService {
       user: userId ? { connect: { id: userId } } : undefined,
     });
 
+    // Await so serverless doesn't drop the welcome SMS on early response.
     if (student.phone) {
-      void notificationService.sendWelcome({
+      await notificationService.sendWelcome({
         phone: student.phone,
         firstName: student.firstName,
         email: student.email,
@@ -325,7 +422,89 @@ export class StudentService {
       });
     }
 
+    // Room already on a machine rotation? Tell the new roommate — do NOT
+    // re-write the schedule (rotation is room-based; one slot per room).
+    if (student.phone && resolvedRoomId) {
+      await this.notifyExistingRoomRotation(
+        student.firstName,
+        student.phone,
+        userId,
+        resolvedRoomId
+      );
+    }
+
     return student;
+  }
+
+  /** SMS a new roommate about wash days already set for their room. */
+  private async notifyExistingRoomRotation(
+    firstName: string,
+    phone: string,
+    userId: string | undefined,
+    roomId: string
+  ) {
+    try {
+      const { prisma } = await import("@/lib/db/prisma");
+      const slots = await prisma.machineSchedule.findMany({
+        where: { roomId, isActive: true },
+        include: {
+          machine: { select: { serialNumber: true, code: true, name: true } },
+          room: { select: { number: true } },
+        },
+        orderBy: { orderIndex: "asc" },
+      });
+      if (!slots.length) return;
+
+      const DAY: Record<string, string> = {
+        MONDAY: "Mon",
+        TUESDAY: "Tue",
+        WEDNESDAY: "Wed",
+        THURSDAY: "Thu",
+        FRIDAY: "Fri",
+        SATURDAY: "Sat",
+        SUNDAY: "Sun",
+      };
+      const dayList = slots
+        .map(
+          (s) =>
+            `${DAY[s.dayOfWeek] ?? s.dayOfWeek} ${s.startTime}`
+        )
+        .join(", ");
+      const machine =
+        slots[0]!.machine.code ||
+        slots[0]!.machine.name ||
+        slots[0]!.machine.serialNumber;
+      const roomNo = slots[0]!.room.number;
+
+      await notificationService.notify({
+        phones: [phone],
+        userIds: userId ? [userId] : [],
+        title: "Your room is on the wash rotation",
+        body: `Hi ${firstName}, Room ${roomNo} is already scheduled: ${dayList}. Machine ${machine}. You share this slot with roommates — no new schedule needed. - WeWash`,
+        url: "/student",
+        channels: userId ? ["SMS", "PUSH"] : ["SMS"],
+      });
+    } catch {
+      // best-effort; welcome SMS already sent
+    }
+  }
+
+  /**
+   * Resend welcome / login SMS (no new password — points to Forgot password).
+   */
+  async resendWelcome(user: User | null, studentId: string): Promise<void> {
+    requirePermission(user, "students", "update");
+    const student = await this.repo.findById(studentId);
+    if (!student) throw AppError.notFound("Student", studentId);
+    if (!student.phone?.trim()) {
+      throw AppError.badRequest("No phone number on file — cannot send SMS.");
+    }
+    await notificationService.sendWelcome({
+      phone: student.phone,
+      firstName: student.firstName,
+      email: student.email,
+      temporaryPassword: null,
+    });
   }
 
   /**

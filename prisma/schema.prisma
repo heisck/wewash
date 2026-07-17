@@ -409,6 +409,9 @@ model WashSession {
   minutesLate     Int? // Minutes after expectedStartAt that the scan happened
   endedAt         DateTime?
   status          WashSessionStatus @default(IN_USE)
+  /// Student laundry experience rating after scan (frown|meh|smile|heart|star)
+  feedbackRating  String?
+  feedbackAt      DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 

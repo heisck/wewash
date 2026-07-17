@@ -2,21 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
 import {
-  Bell, Mail, MessageSquare, Camera, Building, ChevronDown,
+  Bell, Mail, MessageSquare, Building, ChevronDown, CreditCard,
 } from "lucide-react";
 import {
   PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelToggle,
 } from "@/components/pixel/pixel-ui";
 import { usePush } from "@/hooks/use-push";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { MeResponse } from "@/lib/types/client";
+import type { MeResponse, WeekDuesStatus } from "@/lib/types/client";
 
 export default function SettingsPage() {
-  const { data: me, reload } = useApi<MeResponse>("/api/v1/me");
+  const { data: me, reload, loading: meLoading } = useApi<MeResponse>("/api/v1/me");
+  const { data: dues } = useApi<WeekDuesStatus>(
+    me?.student ? "/api/v1/me/dues" : null
+  );
   const [notifOpen, setNotifOpen] = useState(true);
   const [contractOpen, setContractOpen] = useState(false);
-  const { supported, subscribed, busy, subscribe, unsubscribe } = usePush();
+  const {
+    supported,
+    subscribed,
+    busy,
+    permission,
+    vapidConfigured,
+    subscribe,
+    unsubscribe,
+  } = usePush();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -47,8 +59,17 @@ export default function SettingsPage() {
     : me?.student?.roomNumber
       ? `Room ${me.student.roomNumber}`
       : "No room";
-  const hallLabel = me?.student?.room?.hall?.name || me?.student?.group?.hall?.name || "";
+  const hallLabel =
+    me?.student?.room?.hall?.name ||
+    me?.student?.group?.hall?.name ||
+    "";
+  const groupLabel = me?.student?.group
+    ? `${me.student.group.name} · Fl. ${me.student.group.floor} · Bl. ${me.student.group.block}`
+    : "—";
   const weekly = Number(me?.student?.weeklyAmount ?? 0);
+  const paidWeek = dues?.paidThisWeek ?? 0;
+  const remaining = dues?.remaining ?? 0;
+  const paidFull = dues?.isPaidInFull ?? weekly <= 0;
 
   const saveProfile = async () => {
     setSaving(true);
@@ -81,21 +102,20 @@ export default function SettingsPage() {
     }
   };
 
+  if (meLoading && !me) {
+    return (
+      <div className="mx-auto max-w-3xl py-16 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+        Loading settings…
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-8 pb-12">
-      <PageTitle text="SETTINGS" sub="Profile, alerts & contract" />
+      <PageTitle text="SETTINGS" sub="Profile, alerts & weekly subscription" />
 
       <PixelCard bolts className="overflow-hidden">
-        <div className="bg-pixel-checker relative h-28 border-b-2 border-teal-900/25 bg-gradient-to-r from-teal-600 to-teal-800 dark:border-teal-100/20 sm:h-36">
-          <button
-            type="button"
-            onClick={() => toast.info("Cover photo upload coming soon.")}
-            aria-label="Change cover photo"
-            className="absolute bottom-3 right-3 flex h-8 w-8 cursor-pointer items-center justify-center border-2 border-white/40 bg-white/15 text-white backdrop-blur-sm transition-colors hover:bg-white/30"
-          >
-            <Camera className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <div className="bg-pixel-checker relative h-28 border-b-2 border-teal-900/25 bg-gradient-to-r from-teal-600 to-teal-800 dark:border-teal-100/20 sm:h-36" />
 
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:p-6">
           <div className="relative -mt-14 w-fit sm:-mt-16">
@@ -113,11 +133,20 @@ export default function SettingsPage() {
               {me?.student?.studentId ? ` · ${me.student.studentId}` : ""}
             </p>
           </div>
-          <PixelButton size="sm" onClick={saveProfile} disabled={saving}>
+          <PixelButton size="sm" onClick={saveProfile} disabled={saving || !me?.student}>
             {saving ? "Saving…" : "Save changes"}
           </PixelButton>
         </div>
       </PixelCard>
+
+      {!me?.student && (
+        <PixelCard className="border-2 border-amber-500/40 bg-amber-500/10 p-4">
+          <p className="text-[12px] font-semibold text-amber-950 dark:text-amber-100">
+            No student profile is linked to this login. Ask admin to register you
+            with <strong>{me?.user.email}</strong>.
+          </p>
+        </PixelCard>
+      )}
 
       <PixelCard className="divide-y-2 divide-teal-900/10 p-5 dark:divide-teal-100/10 sm:p-6">
         <FormRow label="Full name">
@@ -147,6 +176,10 @@ export default function SettingsPage() {
 
         <FormRow label="Room" sublabel="Assigned by hall management.">
           <PixelInput value={roomLabel} disabled />
+        </FormRow>
+
+        <FormRow label="Group">
+          <PixelInput value={groupLabel} disabled />
         </FormRow>
 
         <FormRow label="Hall">
@@ -190,25 +223,35 @@ export default function SettingsPage() {
               icon={Bell}
               title="Push Notifications"
               desc={
-                !supported
-                  ? "Install the PWA / use a supported browser with VAPID configured"
-                  : subscribed
-                    ? "On this device — rotation + pay nudges when eligible"
-                    : "Off — enable for free app alerts"
+                !vapidConfigured
+                  ? "Server push keys not configured yet"
+                  : !supported
+                    ? "Use Chrome/Edge/Safari (PWA) with notification support"
+                    : permission === "denied"
+                      ? "Blocked in browser settings — allow notifications for this site"
+                      : subscribed
+                        ? "On this device — rotation + pay nudges when eligible"
+                        : "Off — enable for free app alerts (rotation 24/12/6h when paid)"
               }
               enabled={subscribed}
               onToggle={async () => {
                 if (busy) return;
                 if (subscribed) {
-                  await unsubscribe();
-                  toast.success("Push off on this device.");
+                  const res = await unsubscribe();
+                  if (res.ok) toast.success("Push off on this device.");
+                  else toast.error(res.error || "Could not disable push.");
                 } else {
-                  const ok = await subscribe();
-                  if (ok) toast.success("Push enabled.");
-                  else toast.error("Allow notifications when prompted.");
+                  const res = await subscribe();
+                  if (res.ok) toast.success("Push enabled on this device.");
+                  else toast.error(res.error || "Allow notifications when prompted.");
                 }
               }}
             />
+            {subscribed && (
+              <p className="px-1 text-[9px] font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">
+                This device will receive in-app rotation alerts
+              </p>
+            )}
           </div>
         </div>
       </PixelCard>
@@ -240,8 +283,24 @@ export default function SettingsPage() {
               value={`GHS ${weekly.toFixed(2)}`}
               bold
             />
+            <ContractRow
+              label="This week"
+              value={
+                paidFull
+                  ? `Paid in full (${paidWeek.toFixed(2)})`
+                  : `GHS ${remaining.toFixed(2)} remaining`
+              }
+            />
             <ContractRow label="Room" value={roomLabel} />
+            <ContractRow label="Group" value={groupLabel} />
             <ContractRow label="Hall" value={hallLabel || "—"} />
+            <div className="pt-2">
+              <Link href="/student/billing">
+                <PixelButton size="sm" variant="outline" type="button">
+                  <CreditCard className="h-3.5 w-3.5" /> Open payments
+                </PixelButton>
+              </Link>
+            </div>
           </div>
         </div>
       </PixelCard>

@@ -25,6 +25,16 @@ const DAY_LABEL: Record<DayOfWeek, string> = {
   SUNDAY: "Sunday",
 };
 
+const DAYS_ORDER: DayOfWeek[] = [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
+];
+
 function scheduleKey(roomId: string, dayOfWeek: string, startTime: string) {
   return `${roomId}|${dayOfWeek}|${startTime}`;
 }
@@ -129,17 +139,134 @@ export class MachineService {
       });
     }
 
+    // Groups served by each machine: rooms on the schedule → students → groups,
+    // plus all active groups in the machine's hall (available for rotation).
+    const allRoomIds = [
+      ...new Set(
+        data.flatMap((m) => {
+          const sched =
+            (m as { machineSchedules?: { roomId: string }[] }).machineSchedules ??
+            [];
+          return sched.map((s) => s.roomId);
+        })
+      ),
+    ];
+    const hallIds = [
+      ...new Set(data.map((m) => m.hallId).filter((id): id is string => !!id)),
+    ];
+
+    const [roomStudents, hallGroups] = await Promise.all([
+      allRoomIds.length
+        ? prisma.student.findMany({
+            where: {
+              roomId: { in: allRoomIds },
+              deletedAt: null,
+              isActive: true,
+              groupId: { not: null },
+            },
+            select: {
+              roomId: true,
+              group: {
+                select: {
+                  id: true,
+                  name: true,
+                  hallId: true,
+                  floor: true,
+                  block: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      hallIds.length
+        ? prisma.studentGroup.findMany({
+            where: {
+              hallId: { in: hallIds },
+              deletedAt: null,
+              isActive: true,
+            },
+            select: {
+              id: true,
+              name: true,
+              hallId: true,
+              floor: true,
+              block: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    type GroupBrief = {
+      id: string;
+      name: string;
+      hallId: string;
+      floor: string;
+      block: string;
+      /** true if at least one room of this group is on the machine schedule */
+      scheduled: boolean;
+    };
+
+    const groupsByRoom = new Map<string, GroupBrief>();
+    for (const st of roomStudents) {
+      if (!st.roomId || !st.group) continue;
+      groupsByRoom.set(st.roomId, {
+        id: st.group.id,
+        name: st.group.name,
+        hallId: st.group.hallId,
+        floor: st.group.floor,
+        block: st.group.block,
+        scheduled: true,
+      });
+    }
+
+    const groupsByHall = new Map<string, GroupBrief[]>();
+    for (const g of hallGroups) {
+      const list = groupsByHall.get(g.hallId) ?? [];
+      list.push({
+        id: g.id,
+        name: g.name,
+        hallId: g.hallId,
+        floor: g.floor,
+        block: g.block,
+        scheduled: false,
+      });
+      groupsByHall.set(g.hallId, list);
+    }
+
     const enriched = data.map((m) => {
       const heldBy = heldByMap.get(m.id) ?? null;
+      const sched =
+        (m as { machineSchedules?: { roomId: string }[] }).machineSchedules ??
+        [];
+      const byId = new Map<string, GroupBrief>();
+
+      // Groups with rooms on this machine's rotation
+      for (const s of sched) {
+        const g = groupsByRoom.get(s.roomId);
+        if (g) byId.set(g.id, { ...g, scheduled: true });
+      }
+      // Other groups in the same hostel (not yet on schedule)
+      if (m.hallId) {
+        for (const g of groupsByHall.get(m.hallId) ?? []) {
+          if (!byId.has(g.id)) byId.set(g.id, g);
+        }
+      }
+
+      const groups = [...byId.values()].sort((a, b) => {
+        if (a.scheduled !== b.scheduled) return a.scheduled ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
       const row = m as Machine & {
         machineSchedules?: MachineSchedule[];
         schedules?: MachineSchedule[];
         heldBy?: typeof heldBy;
         currentRoom?: { id: string; number: string } | null;
+        groups?: GroupBrief[];
       };
-      // Client already looks at schedules; also expose as schedules alias.
       row.schedules = row.machineSchedules ?? row.schedules;
       row.heldBy = heldBy;
+      row.groups = groups;
       if (heldBy) {
         row.currentRoom = { id: heldBy.roomId, number: heldBy.roomNumber };
       }
@@ -252,9 +379,10 @@ export class MachineService {
   }
 
   /**
-   * Replace the full 7-day rotation schedule for a machine.
-   * Students in rooms that are newly assigned (or whose day/time changed)
-   * get an SMS + push so they know their wash slot.
+   * Replace rotation schedule for a machine.
+   * With `scopeRoomIds`, only those rooms are rewritten — other rooms on the
+   * same machine keep their slots (room-based; new roommates never re-add a room).
+   * Students are SMS'd only for new/changed slots.
    */
   async replaceSchedule(user: User | null, data: BulkMachineScheduleInput): Promise<void> {
     requirePermission(user, "schedules", "update");
@@ -269,11 +397,20 @@ export class MachineService {
     }
 
     const previous = await this.repo.getSchedule(data.machineId);
+    const scope =
+      data.scopeRoomIds && data.scopeRoomIds.length > 0
+        ? new Set(data.scopeRoomIds)
+        : null;
+
+    // Compare only within scope so other groups' slots don't affect "changed"
+    const prevInScope = scope
+      ? previous.filter((s) => scope.has(s.roomId))
+      : previous;
     const prevKeys = new Set(
-      previous.map((s) => scheduleKey(s.roomId, s.dayOfWeek, s.startTime))
+      prevInScope.map((s) => scheduleKey(s.roomId, s.dayOfWeek, s.startTime))
     );
 
-    const scheduleData = data.schedules.map((s) => ({
+    const incoming = data.schedules.map((s) => ({
       machineId: data.machineId,
       roomId: s.roomId,
       dayOfWeek: s.dayOfWeek,
@@ -281,6 +418,33 @@ export class MachineService {
       endTime: s.endTime,
       orderIndex: s.orderIndex,
     }));
+
+    const scheduleData = scope
+      ? [
+          ...previous
+            .filter((s) => !scope.has(s.roomId))
+            .map((s) => ({
+              machineId: data.machineId,
+              roomId: s.roomId,
+              dayOfWeek: s.dayOfWeek,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              orderIndex: s.orderIndex,
+            })),
+          ...incoming,
+        ]
+      : incoming;
+
+    // Re-index full week by day order for stability
+    scheduleData.sort(
+      (a, b) =>
+        DAYS_ORDER.indexOf(a.dayOfWeek as DayOfWeek) -
+          DAYS_ORDER.indexOf(b.dayOfWeek as DayOfWeek) ||
+        a.orderIndex - b.orderIndex
+    );
+    scheduleData.forEach((s, i) => {
+      s.orderIndex = i;
+    });
 
     await this.repo.replaceSchedule(data.machineId, scheduleData);
 

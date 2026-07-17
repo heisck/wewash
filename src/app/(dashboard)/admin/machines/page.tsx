@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Settings, Plus, QrCode, Download, CalendarDays } from "lucide-react";
+import { Settings, Plus, QrCode, Download, CalendarDays, UsersRound } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -11,8 +11,11 @@ import {
   PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel, PixelSelect,
 } from "@/components/pixel/pixel-ui";
 import { usePersistedState } from "@/hooks/use-persisted-state";
+import { LocationFilterBar } from "@/components/admin/location-filter-bar";
+import { useAdminLocationFilter } from "@/hooks/use-admin-location-filter";
+import { matchMachineLocation } from "@/lib/admin/location-filter";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { MachineDTO, HallDTO } from "@/lib/types/client";
+import type { MachineDTO, HallDTO, StudentGroupDTO } from "@/lib/types/client";
 
 const statusTone: Record<string, "green" | "amber" | "red" | "slate"> = {
   ACTIVE: "green",
@@ -25,6 +28,10 @@ const statusTone: Record<string, "green" | "amber" | "red" | "slate"> = {
 export default function AdminMachines() {
   const { data: machines, reload } = useApi<MachineDTO[]>("/api/v1/machines?limit=100");
   const { data: halls } = useApi<HallDTO[]>("/api/v1/halls?limit=100");
+  const { data: groups } = useApi<StudentGroupDTO[]>(
+    "/api/v1/student-groups?limit=200"
+  );
+  const { filter, active: filterActive } = useAdminLocationFilter();
   const [addOpen, setAddOpen] = usePersistedState("admin/machines:addOpen", false);
   const [configForId, setConfigForId] = usePersistedState<string | null>(
     "admin/machines:configForId",
@@ -35,18 +42,23 @@ export default function AdminMachines() {
     null
   );
 
-  const list = machines ?? [];
+  const list = useMemo(
+    () => (machines ?? []).filter((m) => matchMachineLocation(m, filter)),
+    [machines, filter]
+  );
   const configFor = configForId
-    ? list.find((m) => m.id === configForId) ?? null
+    ? (machines ?? []).find((m) => m.id === configForId) ?? null
     : null;
-  const qrFor = qrForId ? list.find((m) => m.id === qrForId) ?? null : null;
+  const qrFor = qrForId
+    ? (machines ?? []).find((m) => m.id === qrForId) ?? null
+    : null;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageTitle
           text="MACHINES"
-          sub="Students scan the QR — you see who has each unit and in which room"
+          sub="Groups per machine · who has each unit · QR scan live"
         />
         <div className="flex gap-2">
           <Link href="/admin/rotation">
@@ -60,14 +72,23 @@ export default function AdminMachines() {
         </div>
       </div>
 
-      {list.length === 0 ? (
+      <LocationFilterBar halls={halls} groups={groups} />
+
+      {(machines ?? []).length === 0 ? (
         <PixelCard className="flex items-center justify-center py-16 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">
           No machines yet — add your first unit. You can start with any number of rooms.
+        </PixelCard>
+      ) : list.length === 0 ? (
+        <PixelCard className="flex items-center justify-center py-16 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+          No machines match this location filter
+          {filterActive ? " — clear filters or pick another hostel/floor/block." : "."}
         </PixelCard>
       ) : (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           {list.map((m) => {
             const scheduleCount = m.schedules?.length ?? 0;
+            const scheduledGroups = (m.groups ?? []).filter((g) => g.scheduled);
+            const otherGroups = (m.groups ?? []).filter((g) => !g.scheduled);
             return (
               <PixelCard key={m.id} bolts className="flex flex-col gap-5 p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -95,6 +116,46 @@ export default function AdminMachines() {
                   <Vital label="Rotation rooms" value={String(scheduleCount)} />
                   <Vital label="Code" value={m.code ?? "—"} />
                   <Vital label="Name" value={m.name ?? "—"} />
+                </div>
+
+                {/* Groups this machine serves */}
+                <div className="border-2 border-teal-900/10 px-3 py-3 dark:border-teal-100/10">
+                  <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/45 dark:text-teal-100/45">
+                    <UsersRound className="h-3 w-3" />
+                    Student groups
+                  </p>
+                  {scheduledGroups.length === 0 && otherGroups.length === 0 ? (
+                    <p className="mt-2 text-[10px] font-semibold text-teal-900/40">
+                      No groups linked — assign rooms on Rotation or set a hostel.
+                    </p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {scheduledGroups.map((g) => (
+                        <PixelBadge key={g.id} tone="teal">
+                          {g.name}
+                          <span className="opacity-70">
+                            {" "}
+                            · Fl.{g.floor} Bl.{g.block}
+                          </span>
+                        </PixelBadge>
+                      ))}
+                      {otherGroups.slice(0, 6).map((g) => (
+                        <PixelBadge key={g.id} tone="slate">
+                          {g.name}
+                        </PixelBadge>
+                      ))}
+                      {otherGroups.length > 6 && (
+                        <PixelBadge tone="slate">
+                          +{otherGroups.length - 6} more in hostel
+                        </PixelBadge>
+                      )}
+                    </div>
+                  )}
+                  {scheduledGroups.length > 0 && (
+                    <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-teal-900/35">
+                      Teal = rooms on this machine&apos;s schedule
+                    </p>
+                  )}
                 </div>
 
                 {/* Live from student QR scan */}

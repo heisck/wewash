@@ -8,7 +8,12 @@ import {
   PixelTd, PixelTh, SectionTitle, StatTile,
 } from "@/components/pixel/pixel-ui";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { MeResponse, PaymentDTO, WeekDuesStatus } from "@/lib/types/client";
+import type {
+  ContactConfig,
+  MeResponse,
+  PaymentDTO,
+  WeekDuesStatus,
+} from "@/lib/types/client";
 
 const cedis = (n: string | number) => {
   const v = typeof n === "string" ? Number(n) : n;
@@ -24,13 +29,23 @@ function statusTone(status: PaymentDTO["status"]) {
 
 export default function BillingPage() {
   const { data: me } = useApi<MeResponse>("/api/v1/me");
-  const { data: dues, reload: reloadDues } = useApi<WeekDuesStatus>("/api/v1/me/dues");
-  const { data: payments, reload, loading } = useApi<PaymentDTO[]>("/api/v1/payments?limit=50");
+  const hasStudent = !!me?.student;
+  const { data: dues, reload: reloadDues } = useApi<WeekDuesStatus>(
+    hasStudent ? "/api/v1/me/dues" : null
+  );
+  const { data: payments, reload, loading } = useApi<PaymentDTO[]>(
+    hasStudent ? "/api/v1/payments?limit=50" : null
+  );
+  const { data: contact } = useApi<ContactConfig>("/api/v1/public/contact");
   const list = payments ?? [];
   const weekly = dues?.weeklyAmount ?? Number(me?.student?.weeklyAmount ?? 0);
   const paidWeek = dues?.paidThisWeek ?? 0;
   const remaining = dues?.remaining ?? Math.max(0, weekly - paidWeek);
   const full = dues?.isPaidInFull ?? (weekly <= 0 || paidWeek >= weekly);
+  const weekLabel =
+    dues?.weekStart && dues?.weekEnd
+      ? `${new Date(dues.weekStart).toLocaleDateString()} – ${new Date(dues.weekEnd).toLocaleDateString()}`
+      : "This Mon–Sun week";
 
   const totals = useMemo(() => {
     let paidAll = 0;
@@ -93,21 +108,45 @@ export default function BillingPage() {
         />
       </div>
 
-      {!full && (
-        <PixelCard className="border-2 border-amber-500/40 bg-amber-500/5 p-4">
-          <p className="text-xs font-bold text-teal-950 dark:text-teal-50">
-            This week’s fee is <span className="font-black">{cedis(weekly)}</span>. You can pay
-            in pieces — each confirmed amount adds up. When the total reaches the fee (or more),
-            you show as <span className="font-black">paid in full</span>.
+      <PixelCard className="border-2 border-teal-900/15 bg-teal-600/5 p-4 dark:border-teal-100/15">
+        <p className="text-[10px] font-black uppercase tracking-widest text-teal-900/45">
+          Billing week
+        </p>
+        <p className="mt-1 text-xs font-bold text-teal-950 dark:text-teal-50">
+          {weekLabel}
+        </p>
+        {!full ? (
+          <p className="mt-2 text-xs font-bold text-teal-950 dark:text-teal-50">
+            Fee is <span className="font-black">{cedis(weekly)}</span>. Pay off-app in pieces —
+            each admin-confirmed amount adds up until you are paid in full.
           </p>
-        </PixelCard>
-      )}
+        ) : (
+          <p className="mt-2 text-xs font-bold text-teal-800 dark:text-teal-200">
+            You are paid in full for this week. You can still submit another proof if you overpay.
+          </p>
+        )}
+        {(contact?.phone || contact?.whatsapp || contact?.email) && (
+          <p className="mt-2 text-[11px] font-semibold text-teal-900/55 dark:text-teal-100/55">
+            Pay via admin
+            {contact.phone ? ` · ${contact.phone}` : ""}
+            {contact.whatsapp ? ` · WhatsApp ${contact.whatsapp}` : ""}
+            {contact.email ? ` · ${contact.email}` : ""}
+            , then upload the screenshot below.
+          </p>
+        )}
+      </PixelCard>
 
-      <SubmitProofCard
-        weekly={weekly}
-        remaining={remaining}
-        onDone={refresh}
-      />
+      {!me?.student ? (
+        <PixelCard className="p-6 text-center text-[11px] font-semibold text-teal-900/50">
+          No student profile linked — payments cannot be submitted until admin registers you.
+        </PixelCard>
+      ) : (
+        <SubmitProofCard
+          weekly={weekly}
+          remaining={remaining}
+          onDone={refresh}
+        />
+      )}
 
       <div className="space-y-4">
         <SectionTitle text="YOUR PAYMENTS" />
