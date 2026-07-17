@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Banknote,
@@ -12,7 +11,6 @@ import {
   XCircle,
   Plus,
   Search,
-  ScanLine,
   UserRound,
 } from "lucide-react";
 import {
@@ -38,7 +36,7 @@ import {
 } from "@/components/pixel/pixel-ui";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { api, useApi, ApiError } from "@/lib/api/client";
-import type { MachineDTO, PaymentDTO, PaymentReviewBoard, StudentDTO } from "@/lib/types/client";
+import type { PaymentDTO, PaymentReviewBoard, StudentDTO } from "@/lib/types/client";
 
 const cedis = (n: string | number) => {
   const v = typeof n === "string" ? Number(n) : n;
@@ -46,24 +44,16 @@ const cedis = (n: string | number) => {
 };
 
 export default function AdminPaymentsPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const studentIdFromUrl = searchParams.get("studentId");
-
   const { data: board, reload, loading } = useApi<PaymentReviewBoard>(
     "/api/v1/payments/review-board"
   );
   const { data: students } = useApi<StudentDTO[]>("/api/v1/students?limit=200");
-  const { data: machines } = useApi<MachineDTO[]>("/api/v1/machines?limit=100");
 
   const [recordOpen, setRecordOpen] = usePersistedState("admin/payments:recordOpen", false);
   const [reviewId, setReviewId] = useState<string | null>(null);
-  const [focusStudentId, setFocusStudentId] = useState<string | null>(studentIdFromUrl);
+  /** Only set when admin explicitly clicks Open / picks from search — not from proof cards. */
+  const [focusStudentId, setFocusStudentId] = useState<string | null>(null);
   const [studentQuery, setStudentQuery] = useState("");
-
-  useEffect(() => {
-    if (studentIdFromUrl) setFocusStudentId(studentIdFromUrl);
-  }, [studentIdFromUrl]);
 
   const pending = board?.pendingProofs ?? [];
   const unpaid = board?.unpaidThisWeek ?? [];
@@ -141,12 +131,10 @@ export default function AdminPaymentsPage() {
 
   const openStudent = (id: string) => {
     setFocusStudentId(id);
-    router.replace(`/admin/payments?studentId=${id}`, { scroll: false });
   };
 
   const closeStudent = () => {
     setFocusStudentId(null);
-    router.replace("/admin/payments", { scroll: false });
   };
 
   return (
@@ -154,7 +142,7 @@ export default function AdminPaymentsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageTitle
           text="PAYMENTS"
-          sub="Approve proofs · manual record · manual scan per student"
+          sub="Approve proofs · manual record · open a student"
         />
         <PixelButton variant="outline" onClick={() => setRecordOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> Manual record
@@ -208,7 +196,7 @@ export default function AdminPaymentsPage() {
                       {hasPending ? (
                         <PixelBadge tone="amber">APPROVE</PixelBadge>
                       ) : (
-                        <PixelBadge tone="slate">SCAN / PAY</PixelBadge>
+                        <PixelBadge tone="slate">OPEN</PixelBadge>
                       )}
                     </button>
                   </li>
@@ -244,8 +232,7 @@ export default function AdminPaymentsPage() {
       <div className="space-y-3">
         <SectionTitle text="VERIFY PAYMENT PROOFS" />
         <p className="text-xs text-teal-900/55 dark:text-teal-100/55">
-          Tap a card to see the screenshot and approve. Or open a student for approve + manual
-          scan together.
+          Tap a card to see the screenshot and approve, or open a student to approve / record.
         </p>
         {loading && !board ? (
           <PixelCard className="py-12 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
@@ -269,10 +256,7 @@ export default function AdminPaymentsPage() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => {
-                    if (p.studentId) openStudent(p.studentId);
-                    setReviewId(p.id);
-                  }}
+                  onClick={() => setReviewId(p.id)}
                   className="overflow-hidden border-2 border-teal-900/20 bg-white text-left shadow-pixel-sm transition hover:border-teal-600 dark:border-teal-100/15 dark:bg-teal-950/40"
                 >
                   <div className="relative aspect-[4/3] w-full border-b-2 border-teal-900/10 bg-teal-950/5 dark:border-teal-100/10">
@@ -390,15 +374,11 @@ export default function AdminPaymentsPage() {
       <StudentFocusDialog
         student={focusStudent}
         pending={focusPending}
-        machines={machines ?? []}
         onClose={closeStudent}
         onApprove={(p) => confirm(p)}
         onReject={(p) => reject(p)}
         onReviewImage={(p) => setReviewId(p.id)}
         onRecorded={() => {
-          reload();
-        }}
-        onScanned={() => {
           reload();
         }}
       />
@@ -417,34 +397,27 @@ export default function AdminPaymentsPage() {
   );
 }
 
-/** Per-student panel: approve pending proofs, manual scan, manual record. */
+/** Per-student panel: approve pending proofs or manual record. */
 function StudentFocusDialog({
   student,
   pending,
-  machines,
   onClose,
   onApprove,
   onReject,
   onReviewImage,
   onRecorded,
-  onScanned,
 }: {
   student: StudentDTO | null;
   pending: PaymentDTO[];
-  machines: MachineDTO[];
   onClose: () => void;
   onApprove: (p: PaymentDTO) => void;
   onReject: (p: PaymentDTO) => void;
   onReviewImage: (p: PaymentDTO) => void;
   onRecorded: () => void;
-  onScanned: () => void;
 }) {
-  const [machineId, setMachineId] = useState("");
-  const [scanning, setScanning] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
 
   useEffect(() => {
-    setMachineId("");
     setRecordOpen(false);
   }, [student?.id]);
 
@@ -452,26 +425,6 @@ function StudentFocusDialog({
 
   const weekly = Number(student.weeklyAmount ?? 0);
   const roomLabel = student.room?.number ?? student.roomNumber ?? "—";
-
-  const manualScan = async () => {
-    if (!machineId) {
-      toast.error("Pick a machine.");
-      return;
-    }
-    setScanning(true);
-    try {
-      const res = await api.post<{ message?: string }>("/api/v1/scan", {
-        studentId: student.id,
-        machineId,
-      });
-      toast.success(res.message || `Machine claimed for ${student.firstName}.`);
-      onScanned();
-    } catch (err) {
-      toast.error((err as ApiError).message || "Manual scan failed");
-    } finally {
-      setScanning(false);
-    }
-  };
 
   return (
     <>
@@ -503,7 +456,6 @@ function StudentFocusDialog({
               </div>
             </div>
 
-            {/* Approve queue for this student */}
             <div className="space-y-2">
               <p className="text-[10px] font-black uppercase tracking-widest text-teal-900/50">
                 Approve payment
@@ -555,39 +507,6 @@ function StudentFocusDialog({
                   );
                 })
               )}
-            </div>
-
-            {/* Manual scan */}
-            <div className="space-y-2 border-2 border-teal-900/15 p-3">
-              <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-teal-900/50">
-                <ScanLine className="h-3.5 w-3.5" /> Manual scan for this student
-              </p>
-              <p className="text-[10px] text-teal-900/50">
-                Records that a machine is with {student.firstName} in Room {roomLabel}.
-              </p>
-              <PixelSelect
-                value={machineId}
-                onChange={(e) => setMachineId(e.target.value)}
-                aria-label="Machine"
-              >
-                <option value="">Select machine…</option>
-                {machines
-                  .filter((m) => m.status === "ACTIVE" || m.status === "MAINTENANCE")
-                  .map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.code || m.name || m.serialNumber}
-                      {m.serialNumber && m.code ? ` · ${m.serialNumber}` : ""}
-                    </option>
-                  ))}
-              </PixelSelect>
-              <PixelButton
-                type="button"
-                className="w-full"
-                disabled={scanning || !machineId}
-                onClick={() => void manualScan()}
-              >
-                {scanning ? "Claiming…" : "Claim machine for student"}
-              </PixelButton>
             </div>
 
             <PixelButton

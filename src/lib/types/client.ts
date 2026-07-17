@@ -165,10 +165,25 @@ export type MachineDTO = {
   hall?: HallDTO | null;
   notes?: string | null;
   schedules?: MachineScheduleDTO[];
+  /** From schedule estimate (fallback) or QR scan room */
   currentRoom?: { id: string; number: string; block?: string | null; floor?: number | null; section?: string | null } | null;
   previousRoom?: { id: string; number: string } | null;
   nextRoom?: { id: string; number: string } | null;
   hoursToNextTransfer?: number | null;
+  /**
+   * Who scanned the machine QR last (live). Admin “who has it” view.
+   * Only set while WashSession status is IN_USE.
+   */
+  heldBy?: {
+    studentId: string;
+    firstName: string;
+    lastName: string;
+    universityId: string;
+    roomId: string;
+    roomNumber: string;
+    scannedAt: string;
+    dueBackAt: string;
+  } | null;
 };
 
 export type PaymentDTO = {
@@ -307,6 +322,8 @@ export type MachineLocationItem = {
   status: string;
   hallCode: string | null;
   currentRoom: string | null;
+  /** Student who scanned the QR (live hold) */
+  heldBy?: string | null;
   previousRoom: string | null;
   nextRoom: string | null;
   hoursToNextTransfer: number | null;

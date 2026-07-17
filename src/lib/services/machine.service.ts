@@ -59,7 +59,77 @@ export class MachineService {
       },
     });
 
-    return { data, total };
+    // Live location from student QR scan (WashSession), not only the schedule.
+    const { prisma } = await import("@/lib/db/prisma");
+    const machineIds = data.map((m) => m.id);
+    const activeSessions =
+      machineIds.length === 0
+        ? []
+        : await prisma.washSession.findMany({
+            where: {
+              machineId: { in: machineIds },
+              status: "IN_USE",
+            },
+            orderBy: { scannedAt: "desc" },
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  studentId: true,
+                },
+              },
+              room: { select: { id: true, number: true } },
+            },
+          });
+
+    const heldByMap = new Map<
+      string,
+      {
+        studentId: string;
+        firstName: string;
+        lastName: string;
+        universityId: string;
+        roomId: string;
+        roomNumber: string;
+        scannedAt: string;
+        dueBackAt: string;
+      }
+    >();
+    for (const s of activeSessions) {
+      if (heldByMap.has(s.machineId)) continue; // newest first
+      if (!s.student || !s.room) continue;
+      heldByMap.set(s.machineId, {
+        studentId: s.student.id,
+        firstName: s.student.firstName,
+        lastName: s.student.lastName,
+        universityId: s.student.studentId,
+        roomId: s.room.id,
+        roomNumber: s.room.number,
+        scannedAt: s.scannedAt.toISOString(),
+        dueBackAt: s.dueBackAt.toISOString(),
+      });
+    }
+
+    const enriched = data.map((m) => {
+      const heldBy = heldByMap.get(m.id) ?? null;
+      const row = m as Machine & {
+        machineSchedules?: MachineSchedule[];
+        schedules?: MachineSchedule[];
+        heldBy?: typeof heldBy;
+        currentRoom?: { id: string; number: string } | null;
+      };
+      // Client already looks at schedules; also expose as schedules alias.
+      row.schedules = row.machineSchedules ?? row.schedules;
+      row.heldBy = heldBy;
+      if (heldBy) {
+        row.currentRoom = { id: heldBy.roomId, number: heldBy.roomNumber };
+      }
+      return row;
+    });
+
+    return { data: enriched as Machine[], total };
   }
 
   /**

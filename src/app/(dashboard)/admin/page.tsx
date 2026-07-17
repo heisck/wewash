@@ -162,6 +162,7 @@ export default function AdminDashboard() {
                         <p className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40">
                           Room {m.currentRoom ?? "—"}
                           {m.hallCode ? ` · ${m.hallCode}` : ""}
+                          {m.heldBy ? ` · ${m.heldBy}` : ""}
                         </p>
                       </div>
                     </div>

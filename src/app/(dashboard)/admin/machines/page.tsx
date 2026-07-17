@@ -44,7 +44,10 @@ export default function AdminMachines() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageTitle text="MACHINES" sub="Empty until you add units — each gets a unique QR automatically" />
+        <PageTitle
+          text="MACHINES"
+          sub="Students scan the QR — you see who has each unit and in which room"
+        />
         <div className="flex gap-2">
           <Link href="/admin/rotation">
             <PixelButton variant="outline">
@@ -92,6 +95,40 @@ export default function AdminMachines() {
                   <Vital label="Rotation rooms" value={String(scheduleCount)} />
                   <Vital label="Code" value={m.code ?? "—"} />
                   <Vital label="Name" value={m.name ?? "—"} />
+                </div>
+
+                {/* Live from student QR scan */}
+                <div
+                  className={`border-2 px-3 py-3 ${
+                    m.heldBy
+                      ? "border-teal-600/40 bg-teal-600/10"
+                      : "border-teal-900/10 bg-teal-600/5 dark:border-teal-100/10"
+                  }`}
+                >
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-900/45 dark:text-teal-100/45">
+                    Currently with
+                  </p>
+                  {m.heldBy ? (
+                    <>
+                      <p className="mt-1 text-sm font-black uppercase tracking-wide text-teal-950 dark:text-white">
+                        {m.heldBy.firstName} {m.heldBy.lastName}
+                      </p>
+                      <p className="text-[10px] font-bold text-teal-800 dark:text-teal-200">
+                        Room {m.heldBy.roomNumber}
+                        <span className="text-teal-900/40 dark:text-teal-100/40">
+                          {" "}
+                          · {m.heldBy.universityId}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-[9px] font-semibold text-teal-900/40 dark:text-teal-100/40">
+                        Scanned {new Date(m.heldBy.scannedAt).toLocaleString()}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">
+                      No active scan — waiting for a student to scan the QR
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2.5 border-t-2 border-teal-900/10 pt-4 dark:border-teal-100/10">

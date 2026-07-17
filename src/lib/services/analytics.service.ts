@@ -216,6 +216,33 @@ export class AnalyticsService {
       if (paidThisWeek < due) outstandingBalance += due - paidThisWeek;
     }
 
+    // Prefer live QR-scan location over schedule estimate.
+    const liveSessions = await prisma.washSession.findMany({
+      where: {
+        machineId: { in: machinesWithSchedule.map((m) => m.id) },
+        status: "IN_USE",
+      },
+      orderBy: { scannedAt: "desc" },
+      include: {
+        student: { select: { firstName: true, lastName: true } },
+        room: { select: { number: true } },
+      },
+    });
+    const liveByMachine = new Map<
+      string,
+      { roomNumber: string; holder: string }
+    >();
+    for (const s of liveSessions) {
+      if (liveByMachine.has(s.machineId)) continue;
+      if (!s.room) continue;
+      liveByMachine.set(s.machineId, {
+        roomNumber: s.room.number,
+        holder: s.student
+          ? `${s.student.firstName} ${s.student.lastName}`
+          : "Student",
+      });
+    }
+
     const machineLocations = machinesWithSchedule.map((m) => {
       const rot = computeRotation(
         m.machineSchedules.map((s) => ({
@@ -225,12 +252,15 @@ export class AnalyticsService {
         now
       );
       const label = m.code || m.name || m.serialNumber;
+      const live = liveByMachine.get(m.id);
       return {
         machineId: m.id,
         machineLabel: label,
         status: m.status,
         hallCode: m.hall?.code ?? null,
-        currentRoom: rot.currentRoom?.number ?? null,
+        // Scan wins when a student has claimed the machine
+        currentRoom: live?.roomNumber ?? rot.currentRoom?.number ?? null,
+        heldBy: live?.holder ?? null,
         previousRoom: null as string | null,
         nextRoom: rot.nextRoom?.number ?? null,
         hoursToNextTransfer: rot.hoursToNextTransfer,

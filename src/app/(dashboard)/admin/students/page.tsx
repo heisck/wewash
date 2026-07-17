@@ -480,8 +480,8 @@ export default function AdminStudents() {
                                           <PixelTd className="text-right">
                                             <div className="flex justify-end gap-2">
                                               <Link
-                                                href={`/admin/payments?studentId=${s.id}`}
-                                                title="Approve payment or manual scan for this student"
+                                                href="/admin/payments"
+                                                title="Open payments — use Open on a student to manage their panel"
                                                 className="inline-flex h-8 items-center justify-center gap-1 border-2 border-teal-900/25 bg-transparent px-2 text-[10px] font-black uppercase tracking-widest text-teal-900 shadow-pixel-sm transition hover:bg-teal-600/10 dark:border-teal-100/25 dark:text-teal-100"
                                               >
                                                 <CreditCard className="h-3 w-3" />
