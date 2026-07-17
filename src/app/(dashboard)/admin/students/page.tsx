@@ -441,7 +441,7 @@ export default function AdminStudents() {
                             {open && (
                               <div className="border-t-2 border-teal-900/10 dark:border-teal-100/10">
                                 <div className="overflow-x-auto">
-                                  <table className="w-full min-w-[720px] text-left">
+                                  <table className="w-full min-w-180 text-left">
                                     <thead>
                                       <tr className="border-b border-teal-900/10 dark:border-teal-100/10">
                                         <PixelTh>Student</PixelTh>
@@ -457,7 +457,7 @@ export default function AdminStudents() {
                                       {room.students.map((s) => (
                                         <tr
                                           key={s.id}
-                                          className="bg-teal-600/[0.03] dark:bg-teal-400/[0.03]"
+                                          className="bg-teal-600/3 dark:bg-teal-400/3"
                                         >
                                           <PixelTd className="font-black">
                                             {s.firstName} {s.lastName}
@@ -629,176 +629,6 @@ export default function AdminStudents() {
         open={broadcastOpen}
         onClose={() => setBroadcastOpen(false)}
       />
-    </div>
-  );
-}
-
-function StudentRows({
-  student: s,
-  open,
-  roomLabel,
-  groupLabel,
-  onToggle,
-  onPay,
-  onRemind,
-  onRemove,
-  reminding,
-  remindDisabled,
-}: {
-  student: StudentDTO;
-  open: boolean;
-  roomLabel: string;
-  groupLabel: string;
-  onToggle: () => void;
-  onPay: () => void;
-  onRemind: () => void;
-  onRemove: () => void;
-  reminding: boolean;
-  remindDisabled: boolean;
-}) {
-  return (
-    <>
-      <tr className="transition-colors hover:bg-teal-600/5 dark:hover:bg-teal-400/5">
-        <PixelTd>
-          <button
-            type="button"
-            onClick={onToggle}
-            className="inline-flex h-8 w-8 items-center justify-center border-2 border-teal-900/15 text-teal-900 dark:border-teal-100/20 dark:text-teal-100"
-            aria-expanded={open}
-            aria-label={open ? "Collapse" : "Expand details"}
-          >
-            {open ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </button>
-        </PixelTd>
-        <PixelTd className="font-black">
-          {s.firstName} {s.lastName}
-        </PixelTd>
-        <PixelTd className="text-[10px] text-teal-900/50 dark:text-teal-100/50">
-          {s.studentId}
-        </PixelTd>
-        <PixelTd className="font-black text-teal-700 dark:text-teal-300">
-          {roomLabel}
-        </PixelTd>
-        <PixelTd className="max-w-[200px] truncate text-[10px] font-semibold text-teal-900/60 dark:text-teal-100/60">
-          {groupLabel}
-        </PixelTd>
-        <PixelTd>
-          <PixelBadge tone={s.isActive ? "green" : "slate"}>
-            {s.isActive ? "ACTIVE" : "INACTIVE"}
-          </PixelBadge>
-        </PixelTd>
-        <PixelTd className="text-right">
-          <div className="flex justify-end gap-2">
-            <PixelButton size="sm" variant="outline" onClick={onPay}>
-              <CreditCard className="h-3 w-3" /> Pay
-            </PixelButton>
-            <PixelButton
-              size="sm"
-              variant="ghost"
-              onClick={onRemind}
-              disabled={remindDisabled}
-              aria-busy={reminding}
-              aria-label={
-                reminding
-                  ? `Sending SMS to ${s.firstName}`
-                  : `Send SMS reminder to ${s.firstName}`
-              }
-              title={reminding ? "Sending SMS…" : "Send SMS reminder"}
-            >
-              {reminding ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Send className="h-3.5 w-3.5" />
-              )}
-            </PixelButton>
-            <PixelButton size="sm" variant="ghost" onClick={onRemove}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </PixelButton>
-          </div>
-        </PixelTd>
-      </tr>
-      {open && (
-        <tr className="bg-teal-600/[0.04] dark:bg-teal-400/[0.04]">
-          <td colSpan={7} className="px-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <DetailBlock title="Contact">
-                <DetailRow label="Phone" value={s.phone} />
-                <DetailRow label="Secondary" value={s.secondaryPhone} />
-                <DetailRow label="WhatsApp" value={s.whatsapp} />
-                <DetailRow label="Email" value={s.email} />
-              </DetailBlock>
-              <DetailBlock title="Placement">
-                <DetailRow label="Room (typed)" value={s.roomNumber || s.room?.number} />
-                <DetailRow
-                  label="Hostel"
-                  value={s.group?.hall?.name || s.room?.hall?.name}
-                />
-                <DetailRow label="Group" value={s.group?.name} />
-                <DetailRow label="Floor" value={s.group?.floor} />
-                <DetailRow label="Block" value={s.group?.block} />
-              </DetailBlock>
-              <DetailBlock title="Program">
-                <DetailRow label="Student ID" value={s.studentId} />
-                <DetailRow label="Index" value={s.indexNumber} />
-                <DetailRow
-                  label="Weekly (GHS)"
-                  value={
-                    s.weeklyAmount != null ? String(s.weeklyAmount) : undefined
-                  }
-                />
-                <DetailRow
-                  label="Joined"
-                  value={
-                    s.createdAt
-                      ? new Date(s.createdAt).toLocaleDateString()
-                      : undefined
-                  }
-                />
-              </DetailBlock>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-function DetailBlock({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="border-2 border-teal-900/10 p-3 dark:border-teal-100/10">
-      <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-teal-900/45 dark:text-teal-100/45">
-        {title}
-      </p>
-      <dl className="space-y-1.5">{children}</dl>
-    </div>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value?: string | null;
-}) {
-  return (
-    <div className="flex justify-between gap-3 text-[11px]">
-      <dt className="font-semibold text-teal-900/45 dark:text-teal-100/45">
-        {label}
-      </dt>
-      <dd className="text-right font-black text-teal-950 dark:text-teal-50">
-        {value?.trim() ? value : "—"}
-      </dd>
     </div>
   );
 }

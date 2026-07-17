@@ -371,7 +371,7 @@ function RotationInner() {
                 step={60}
                 value={toHHmm(handoff)}
                 onChange={(e) => setHandoff(toHHmm(e.target.value))}
-                className="max-w-[10rem] font-mono tabular-nums"
+                className="max-w-40 font-mono tabular-nums"
               />
             )}
             <p className="text-[10px] font-semibold text-teal-900/45 dark:text-teal-100/45">
@@ -477,7 +477,7 @@ function RotationInner() {
                           [room.id]: toHHmm(e.target.value, globalHandoff),
                         }))
                       }
-                      className="max-w-[10rem] font-mono tabular-nums"
+                      className="max-w-40 font-mono tabular-nums"
                     />
                     <p className="text-[9px] font-semibold text-teal-900/40 dark:text-teal-100/40">
                       Defaults to {globalHandoff}; change anytime with the
