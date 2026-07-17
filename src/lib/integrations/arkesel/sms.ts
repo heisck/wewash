@@ -58,14 +58,24 @@ export async function sendSMS(
       { body: payload }
     );
 
-    smsLogger.info(
-      {
-        recipientCount: normalizedRecipients.length,
-        status: response.status,
-        sandbox: client.isSandbox,
-      },
-      "SMS sent"
-    );
+    if (client.isSandbox) {
+      smsLogger.warn(
+        {
+          recipientCount: normalizedRecipients.length,
+          status: response.status,
+        },
+        "SMS accepted in SANDBOX mode — not delivered and will not appear in Arkesel live history. Set ARKESEL_SANDBOX=false for real sends."
+      );
+    } else {
+      smsLogger.info(
+        {
+          recipientCount: normalizedRecipients.length,
+          status: response.status,
+          sandbox: false,
+        },
+        "SMS sent (live)"
+      );
+    }
 
     return response;
   } catch (error) {
