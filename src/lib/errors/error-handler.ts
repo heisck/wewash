@@ -29,19 +29,25 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   }
 
   // ─── Zod validation errors ─────────────────────────────
+  // Zod 4: issues[]; older shapes used errors[]
   if (error instanceof ZodError) {
-    const zodError = error as any;
-    const details = zodError.errors.map((e: any) => ({
-      field: e.path.join("."),
+    const issues =
+      (error as ZodError).issues ??
+      (error as unknown as { errors?: ZodError["issues"] }).errors ??
+      [];
+    const details = issues.map((e) => ({
+      field: Array.isArray(e.path) ? e.path.join(".") : String(e.path ?? ""),
       message: e.message,
     }));
+
+    logger.warn({ details }, "Validation failed");
 
     return NextResponse.json(
       {
         success: false,
         error: {
           code: ErrorCode.VALIDATION_ERROR,
-          message: "Validation failed",
+          message: details[0]?.message || "Validation failed",
           details,
         },
       },
