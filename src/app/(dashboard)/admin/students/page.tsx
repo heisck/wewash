@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import {
   UserPlus,
   CreditCard,
@@ -54,21 +55,45 @@ export default function AdminStudents() {
     "/api/v1/student-groups?limit=200"
   );
 
-  const [tab, setTab] = useState<Tab>("roster");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [registerOpen, setRegisterOpen] = useState(false);
-  const [groupOpen, setGroupOpen] = useState(false);
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
-  const [payFor, setPayFor] = useState<StudentDTO | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  /** Student id while SMS reminder is in flight */
+  const [tab, setTab] = usePersistedState<Tab>("admin/students:tab", "roster");
+  const [searchTerm, setSearchTerm] = usePersistedState(
+    "admin/students:search",
+    ""
+  );
+  const [registerOpen, setRegisterOpen] = usePersistedState(
+    "admin/students:registerOpen",
+    false
+  );
+  const [groupOpen, setGroupOpen] = usePersistedState(
+    "admin/students:groupOpen",
+    false
+  );
+  const [broadcastOpen, setBroadcastOpen] = usePersistedState(
+    "admin/students:broadcastOpen",
+    false
+  );
+  const [payForId, setPayForId] = usePersistedState<string | null>(
+    "admin/students:payForId",
+    null
+  );
+  /** Expand room key: `${groupId ?? "none"}::${roomKey}` */
+  const [expandedRoomKey, setExpandedRoomKey] = usePersistedState<string | null>(
+    "admin/students:expandedRoomKey",
+    null
+  );
+  /** Student id while SMS reminder is in flight (not persisted) */
   const [remindingId, setRemindingId] = useState<string | null>(null);
 
   const list = students ?? [];
   const groupList = groups ?? [];
 
+  const payFor = payForId
+    ? list.find((s) => s.id === payForId) ?? null
+    : null;
+
   const filtered = useMemo(() => {
-    const q = searchTerm.toLowerCase();
+    const q = searchTerm.toLowerCase().trim();
+    if (!q) return list;
     return list.filter(
       (s) =>
         `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
@@ -76,9 +101,135 @@ export default function AdminStudents() {
         (s.roomNumber ?? s.room?.number ?? "").toLowerCase().includes(q) ||
         (s.group?.name ?? "").toLowerCase().includes(q) ||
         (s.group?.floor ?? "").toLowerCase().includes(q) ||
-        (s.group?.block ?? "").toLowerCase().includes(q)
+        (s.group?.block ?? "").toLowerCase().includes(q) ||
+        (s.phone ?? "").toLowerCase().includes(q) ||
+        (s.email ?? "").toLowerCase().includes(q)
     );
   }, [list, searchTerm]);
+
+  /**
+   * Hierarchy: Group → Room (roommates) → Students.
+   * Empty groups (no matching students) still appear if search is empty.
+   */
+  const hierarchy = useMemo(() => {
+    type RoomBucket = {
+      key: string;
+      roomLabel: string;
+      students: StudentDTO[];
+    };
+    type GroupBucket = {
+      groupId: string | null;
+      title: string;
+      subtitle: string;
+      rooms: RoomBucket[];
+      studentCount: number;
+    };
+
+    const byGroup = new Map<string, StudentDTO[]>();
+    for (const s of filtered) {
+      const gid = s.groupId ?? s.group?.id ?? "__ungrouped__";
+      const arr = byGroup.get(gid) ?? [];
+      arr.push(s);
+      byGroup.set(gid, arr);
+    }
+
+    const buckets: GroupBucket[] = [];
+
+    // Prefer known groups order from groupList
+    for (const g of groupList) {
+      const members = byGroup.get(g.id) ?? [];
+      if (searchTerm.trim() && members.length === 0) continue;
+
+      const roomMap = new Map<string, StudentDTO[]>();
+      for (const s of members) {
+        const roomKey =
+          s.roomId ||
+          s.roomNumber ||
+          s.room?.number ||
+          "__no_room__";
+        const arr = roomMap.get(roomKey) ?? [];
+        arr.push(s);
+        roomMap.set(roomKey, arr);
+      }
+
+      const rooms: RoomBucket[] = Array.from(roomMap.entries())
+        .map(([key, students]) => {
+          const label =
+            key === "__no_room__"
+              ? "No room"
+              : students[0]?.roomNumber ||
+                students[0]?.room?.number ||
+                key;
+          return {
+            key: `${g.id}::${key}`,
+            roomLabel: label,
+            students: students.sort((a, b) =>
+              a.lastName.localeCompare(b.lastName)
+            ),
+          };
+        })
+        .sort((a, b) =>
+          a.roomLabel.localeCompare(b.roomLabel, undefined, { numeric: true })
+        );
+
+      buckets.push({
+        groupId: g.id,
+        title: g.name,
+        subtitle: `${g.hall?.name ?? "Hostel"} · Floor ${g.floor} · Block ${g.block}`,
+        rooms,
+        studentCount: members.length,
+      });
+      byGroup.delete(g.id);
+    }
+
+    // Any leftover (ungrouped / orphan group ids)
+    for (const [gid, members] of byGroup) {
+      if (members.length === 0) continue;
+      const roomMap = new Map<string, StudentDTO[]>();
+      for (const s of members) {
+        const roomKey =
+          s.roomId || s.roomNumber || s.room?.number || "__no_room__";
+        const arr = roomMap.get(roomKey) ?? [];
+        arr.push(s);
+        roomMap.set(roomKey, arr);
+      }
+      const rooms: RoomBucket[] = Array.from(roomMap.entries())
+        .map(([key, students]) => ({
+          key: `${gid}::${key}`,
+          roomLabel:
+            key === "__no_room__"
+              ? "No room"
+              : students[0]?.roomNumber ||
+                students[0]?.room?.number ||
+                key,
+          students: students.sort((a, b) =>
+            a.lastName.localeCompare(b.lastName)
+          ),
+        }))
+        .sort((a, b) =>
+          a.roomLabel.localeCompare(b.roomLabel, undefined, { numeric: true })
+        );
+
+      const sample = members[0]?.group;
+      buckets.push({
+        groupId: gid === "__ungrouped__" ? null : gid,
+        title:
+          gid === "__ungrouped__"
+            ? "Ungrouped"
+            : sample?.name ?? "Other group",
+        subtitle:
+          gid === "__ungrouped__"
+            ? "Students without a group assignment"
+            : sample
+              ? `Floor ${sample.floor} · Block ${sample.block}`
+              : "",
+        rooms,
+        studentCount: members.length,
+      });
+    }
+
+    return buckets;
+  }, [filtered, groupList, searchTerm]);
 
   const reloadAll = () => {
     reloadStudents();
@@ -208,61 +359,188 @@ export default function AdminStudents() {
             />
           </div>
 
-          <PixelCard className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left">
-              <thead>
-                <tr className="border-b-2 border-teal-900/15 dark:border-teal-100/15">
-                  <PixelTh className="w-8 pt-4" />
-                  <PixelTh className="pt-4">Student</PixelTh>
-                  <PixelTh className="pt-4">ID</PixelTh>
-                  <PixelTh className="pt-4">Room</PixelTh>
-                  <PixelTh className="pt-4">Group / floor</PixelTh>
-                  <PixelTh className="pt-4">Status</PixelTh>
-                  <PixelTh className="pt-4 text-right">Actions</PixelTh>
-                </tr>
-              </thead>
-              <tbody className="divide-y-2 divide-teal-900/5 dark:divide-teal-100/5">
-                {filtered.length > 0 ? (
-                  filtered.map((s) => {
-                    const open = expandedId === s.id;
-                    const roomLabel =
-                      s.roomNumber || s.room?.number || "—";
-                    const groupLabel = s.group
-                      ? `${s.group.name} · Fl. ${s.group.floor} · Bl. ${s.group.block}`
-                      : "—";
-                    return (
-                      <StudentRows
-                        key={s.id}
-                        student={s}
-                        open={open}
-                        roomLabel={roomLabel}
-                        groupLabel={groupLabel}
-                        onToggle={() =>
-                          setExpandedId(open ? null : s.id)
-                        }
-                        onPay={() => setPayFor(s)}
-                        onRemind={() => void sendReminder(s)}
-                        onRemove={() => void removeStudent(s)}
-                        reminding={remindingId === s.id}
-                        remindDisabled={!!remindingId}
-                      />
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="py-8 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40"
-                    >
-                      {list.length === 0
-                        ? "No students yet — create a group, then register."
-                        : "No matching students."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </PixelCard>
+          {hierarchy.length === 0 ? (
+            <PixelCard className="py-12 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40 dark:text-teal-100/40">
+              {list.length === 0
+                ? "No students yet — create a group, then register."
+                : "No matching students."}
+            </PixelCard>
+          ) : (
+            <div className="space-y-6">
+              {hierarchy.map((group) => (
+                <section key={group.groupId ?? "ungrouped"} className="space-y-3">
+                  <div className="flex flex-wrap items-end justify-between gap-2 border-b-2 border-teal-900/15 pb-2 dark:border-teal-100/15">
+                    <div>
+                      <h2 className="text-sm font-black uppercase tracking-widest text-teal-950 dark:text-teal-50">
+                        {group.title}
+                      </h2>
+                      {group.subtitle && (
+                        <p className="text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
+                          {group.subtitle}
+                        </p>
+                      )}
+                    </div>
+                    <PixelBadge tone="teal">
+                      {group.studentCount} student
+                      {group.studentCount === 1 ? "" : "s"} ·{" "}
+                      {group.rooms.length} room
+                      {group.rooms.length === 1 ? "" : "s"}
+                    </PixelBadge>
+                  </div>
+
+                  {group.rooms.length === 0 ? (
+                    <PixelCard className="px-4 py-6 text-center text-[10px] font-bold uppercase tracking-widest text-teal-900/35">
+                      No students in this group yet
+                    </PixelCard>
+                  ) : (
+                    <div className="space-y-2">
+                      {group.rooms.map((room) => {
+                        const open = expandedRoomKey === room.key;
+                        return (
+                          <PixelCard key={room.key} className="overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedRoomKey(open ? null : room.key)
+                              }
+                              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-teal-600/5 dark:hover:bg-teal-400/5"
+                              aria-expanded={open}
+                            >
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-teal-900/15 dark:border-teal-100/20">
+                                {open ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-teal-950 dark:text-teal-50">
+                                  Room {room.roomLabel}
+                                </p>
+                                <p className="truncate text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
+                                  {room.students.length} roommate
+                                  {room.students.length === 1 ? "" : "s"}
+                                  {room.students.length
+                                    ? ` · ${room.students
+                                        .map((s) => s.firstName)
+                                        .join(", ")}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <PixelBadge
+                                tone={
+                                  room.students.length > 1 ? "amber" : "slate"
+                                }
+                              >
+                                {room.students.length > 1
+                                  ? "Roommates"
+                                  : "Single"}
+                              </PixelBadge>
+                            </button>
+
+                            {open && (
+                              <div className="border-t-2 border-teal-900/10 dark:border-teal-100/10">
+                                <div className="overflow-x-auto">
+                                  <table className="w-full min-w-[720px] text-left">
+                                    <thead>
+                                      <tr className="border-b border-teal-900/10 dark:border-teal-100/10">
+                                        <PixelTh>Student</PixelTh>
+                                        <PixelTh>ID</PixelTh>
+                                        <PixelTh>Phone</PixelTh>
+                                        <PixelTh>Status</PixelTh>
+                                        <PixelTh className="text-right">
+                                          Actions
+                                        </PixelTh>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-teal-900/5 dark:divide-teal-100/5">
+                                      {room.students.map((s) => (
+                                        <tr
+                                          key={s.id}
+                                          className="bg-teal-600/[0.03] dark:bg-teal-400/[0.03]"
+                                        >
+                                          <PixelTd className="font-black">
+                                            {s.firstName} {s.lastName}
+                                            {s.email && (
+                                              <p className="text-[9px] font-semibold text-teal-900/45 dark:text-teal-100/45">
+                                                {s.email}
+                                              </p>
+                                            )}
+                                          </PixelTd>
+                                          <PixelTd className="text-[10px] text-teal-900/50 dark:text-teal-100/50">
+                                            {s.studentId}
+                                          </PixelTd>
+                                          <PixelTd className="font-mono text-[10px]">
+                                            {s.phone}
+                                          </PixelTd>
+                                          <PixelTd>
+                                            <PixelBadge
+                                              tone={
+                                                s.isActive ? "green" : "slate"
+                                              }
+                                            >
+                                              {s.isActive
+                                                ? "ACTIVE"
+                                                : "INACTIVE"}
+                                            </PixelBadge>
+                                          </PixelTd>
+                                          <PixelTd className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                              <PixelButton
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() =>
+                                                  setPayForId(s.id)
+                                                }
+                                              >
+                                                <CreditCard className="h-3 w-3" />{" "}
+                                                Pay
+                                              </PixelButton>
+                                              <PixelButton
+                                                size="sm"
+                                                variant="ghost"
+                                                disabled={!!remindingId}
+                                                aria-busy={
+                                                  remindingId === s.id
+                                                }
+                                                onClick={() =>
+                                                  void sendReminder(s)
+                                                }
+                                                title="Send SMS reminder"
+                                              >
+                                                {remindingId === s.id ? (
+                                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                  <Send className="h-3.5 w-3.5" />
+                                                )}
+                                              </PixelButton>
+                                              <PixelButton
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() =>
+                                                  void removeStudent(s)
+                                                }
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                              </PixelButton>
+                                            </div>
+                                          </PixelTd>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </PixelCard>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
         </>
       ) : (
         <div className="space-y-4">
@@ -344,7 +622,7 @@ export default function AdminStudents() {
       />
       <PaymentDialog
         student={payFor}
-        onClose={() => setPayFor(null)}
+        onClose={() => setPayForId(null)}
         onDone={reloadAll}
       />
       <BroadcastDialog
@@ -537,12 +815,17 @@ function CreateGroupDialog({
   halls: HallDTO[];
   onDone: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [hallId, setHallId] = useState("");
-  const [floor, setFloor] = useState("");
-  const [block, setBlock] = useState("");
-  const [notes, setNotes] = useState("");
+  const [draft, setDraft] = usePersistedState("admin/students:groupDraft", {
+    name: "",
+    hallId: "",
+    floor: "",
+    block: "",
+    notes: "",
+  });
   const [saving, setSaving] = useState(false);
+  const { name, hallId, floor, block, notes } = draft;
+  const set = <K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) =>
+    setDraft((d) => ({ ...d, [key]: value }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -559,11 +842,7 @@ function CreateGroupDialog({
       toast.success("Group created. You can add students to it now.");
       onDone();
       onClose();
-      setName("");
-      setHallId("");
-      setFloor("");
-      setBlock("");
-      setNotes("");
+      setDraft({ name: "", hallId: "", floor: "", block: "", notes: "" });
     } catch (err) {
       toast.error((err as ApiError).message || "Could not create group.");
     } finally {
@@ -589,7 +868,7 @@ function CreateGroupDialog({
             <PixelSelect
               id="g-hall"
               value={hallId}
-              onChange={(e) => setHallId(e.target.value)}
+              onChange={(e) => set("hallId", e.target.value)}
               required
             >
               <option value="">Select hostel</option>
@@ -607,7 +886,7 @@ function CreateGroupDialog({
                 id="g-floor"
                 placeholder="e.g. 2 or Ground"
                 value={floor}
-                onChange={(e) => setFloor(e.target.value)}
+                onChange={(e) => set("floor", e.target.value)}
                 required
               />
             </div>
@@ -617,7 +896,7 @@ function CreateGroupDialog({
                 id="g-block"
                 placeholder="e.g. A"
                 value={block}
-                onChange={(e) => setBlock(e.target.value)}
+                onChange={(e) => set("block", e.target.value)}
                 required
               />
             </div>
@@ -628,7 +907,7 @@ function CreateGroupDialog({
               id="g-name"
               placeholder="Auto: Block A · Floor 2"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => set("name", e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -636,7 +915,7 @@ function CreateGroupDialog({
             <PixelTextarea
               id="g-notes"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => set("notes", e.target.value)}
               rows={2}
             />
           </div>
@@ -655,6 +934,36 @@ function CreateGroupDialog({
 }
 
 /* ─── Register student into a group (typed room) ─── */
+type RegisterDraft = {
+  firstName: string;
+  lastName: string;
+  studentId: string;
+  indexNumber: string;
+  email: string;
+  phone: string;
+  secondaryPhone: string;
+  whatsapp: string;
+  weeklyAmount: string;
+  temporaryPassword: string;
+  groupId: string;
+  roomNumber: string;
+};
+
+const emptyRegisterDraft = (): RegisterDraft => ({
+  firstName: "",
+  lastName: "",
+  studentId: "",
+  indexNumber: "",
+  email: "",
+  phone: "",
+  secondaryPhone: "",
+  whatsapp: "",
+  weeklyAmount: "",
+  temporaryPassword: "",
+  groupId: "",
+  roomNumber: "",
+});
+
 function RegisterDialog({
   open,
   onClose,
@@ -666,19 +975,30 @@ function RegisterDialog({
   groups: StudentGroupDTO[];
   onDone: () => void;
 }) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [studentId, setStudentId] = useState("");
-  const [indexNumber, setIndexNumber] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [secondaryPhone, setSecondary] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [weeklyAmount, setWeekly] = useState("");
-  const [temporaryPassword, setTempPw] = useState("");
-  const [groupId, setGroupId] = useState("");
-  const [roomNumber, setRoomNumber] = useState("");
+  const [draft, setDraft] = usePersistedState<RegisterDraft>(
+    "admin/students:registerDraft",
+    emptyRegisterDraft()
+  );
   const [saving, setSaving] = useState(false);
+  const set = <K extends keyof RegisterDraft>(
+    key: K,
+    value: RegisterDraft[K]
+  ) => setDraft((d) => ({ ...d, [key]: value }));
+
+  const {
+    firstName,
+    lastName,
+    studentId,
+    indexNumber,
+    email,
+    phone,
+    secondaryPhone,
+    whatsapp,
+    weeklyAmount,
+    temporaryPassword,
+    groupId,
+    roomNumber,
+  } = draft;
 
   const selectedGroup = groups.find((g) => g.id === groupId);
 
@@ -702,21 +1022,12 @@ function RegisterDialog({
         groupId,
         roomNumber: roomNumber.trim(),
       });
-      toast.success(`${firstName} registered in ${selectedGroup?.name ?? "group"}.`);
+      toast.success(
+        `${firstName} registered in ${selectedGroup?.name ?? "group"}.`
+      );
       onDone();
       onClose();
-      setFirstName("");
-      setLastName("");
-      setStudentId("");
-      setIndexNumber("");
-      setEmail("");
-      setPhone("");
-      setSecondary("");
-      setWhatsapp("");
-      setWeekly("");
-      setTempPw("");
-      setGroupId("");
-      setRoomNumber("");
+      setDraft(emptyRegisterDraft());
     } catch (err) {
       toast.error((err as ApiError).message || "Could not register student.");
     } finally {
@@ -749,7 +1060,7 @@ function RegisterDialog({
               <PixelInput
                 id="fn"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => set("firstName", e.target.value)}
                 required
               />
             </div>
@@ -758,7 +1069,7 @@ function RegisterDialog({
               <PixelInput
                 id="ln"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => set("lastName", e.target.value)}
                 required
               />
             </div>
@@ -767,7 +1078,7 @@ function RegisterDialog({
               <PixelInput
                 id="sid"
                 value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
+                onChange={(e) => set("studentId", e.target.value)}
                 required
               />
             </div>
@@ -776,7 +1087,7 @@ function RegisterDialog({
               <PixelInput
                 id="idx"
                 value={indexNumber}
-                onChange={(e) => setIndexNumber(e.target.value)}
+                onChange={(e) => set("indexNumber", e.target.value)}
               />
             </div>
             <div className="col-span-2 space-y-2">
@@ -785,7 +1096,7 @@ function RegisterDialog({
                 id="em"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => set("email", e.target.value)}
                 required
               />
             </div>
@@ -795,7 +1106,7 @@ function RegisterDialog({
                 id="ph"
                 placeholder="0241234567"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => set("phone", e.target.value)}
                 required
               />
             </div>
@@ -804,7 +1115,7 @@ function RegisterDialog({
               <PixelInput
                 id="ph2"
                 value={secondaryPhone}
-                onChange={(e) => setSecondary(e.target.value)}
+                onChange={(e) => set("secondaryPhone", e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -812,7 +1123,7 @@ function RegisterDialog({
               <PixelInput
                 id="wa"
                 value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
+                onChange={(e) => set("whatsapp", e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -822,7 +1133,7 @@ function RegisterDialog({
                 type="number"
                 step="0.01"
                 value={weeklyAmount}
-                onChange={(e) => setWeekly(e.target.value)}
+                onChange={(e) => set("weeklyAmount", e.target.value)}
               />
             </div>
             <div className="col-span-2 space-y-2">
@@ -830,7 +1141,7 @@ function RegisterDialog({
               <PixelSelect
                 id="grp"
                 value={groupId}
-                onChange={(e) => setGroupId(e.target.value)}
+                onChange={(e) => set("groupId", e.target.value)}
                 required
               >
                 <option value="">Select group (floor / block)</option>
@@ -854,7 +1165,7 @@ function RegisterDialog({
                 id="room"
                 placeholder="e.g. 12B or 204"
                 value={roomNumber}
-                onChange={(e) => setRoomNumber(e.target.value)}
+                onChange={(e) => set("roomNumber", e.target.value)}
                 required
               />
             </div>
@@ -865,7 +1176,7 @@ function RegisterDialog({
                 type="text"
                 placeholder="Auto-generated if left blank"
                 value={temporaryPassword}
-                onChange={(e) => setTempPw(e.target.value)}
+                onChange={(e) => set("temporaryPassword", e.target.value)}
               />
             </div>
           </div>
@@ -995,8 +1306,11 @@ function BroadcastDialog({
   open: boolean;
   onClose: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [draft, setDraft] = usePersistedState("admin/students:broadcastDraft", {
+    title: "",
+    body: "",
+  });
+  const { title, body } = draft;
   const [saving, setSaving] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -1022,8 +1336,7 @@ function BroadcastDialog({
         { id: toastId }
       );
       onClose();
-      setTitle("");
-      setBody("");
+      setDraft({ title: "", body: "" });
     } catch (err) {
       toast.error((err as ApiError).message || "Could not send broadcast.", {
         id: toastId,
@@ -1047,7 +1360,9 @@ function BroadcastDialog({
             <PixelInput
               id="bt"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, title: e.target.value }))
+              }
               required
             />
           </div>
@@ -1056,7 +1371,9 @@ function BroadcastDialog({
             <PixelTextarea
               id="bb"
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, body: e.target.value }))
+              }
               required
             />
           </div>

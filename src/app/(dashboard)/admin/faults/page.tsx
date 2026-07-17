@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Wrench } from "lucide-react";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import {
   Dialog,
   DialogContent,
@@ -99,11 +100,27 @@ export default function AdminFaults() {
   );
   const { data: machines } = useApi<MachineDTO[]>("/api/v1/machines?limit=100");
 
-  const [statusFilter, setStatusFilter] = useState<string>("open");
-  const [selectedFault, setSelectedFault] = useState<FaultDTO | null>(null);
-  const [resolutionText, setResolutionText] = useState("");
-  const [repairCost, setRepairCost] = useState("");
+  const [statusFilter, setStatusFilter] = usePersistedState(
+    "admin/faults:statusFilter",
+    "open"
+  );
+  const [selectedFaultId, setSelectedFaultId] = usePersistedState<string | null>(
+    "admin/faults:selectedId",
+    null
+  );
+  const [resolutionText, setResolutionText] = usePersistedState(
+    "admin/faults:resolution",
+    ""
+  );
+  const [repairCost, setRepairCost] = usePersistedState(
+    "admin/faults:repairCost",
+    ""
+  );
   const [saving, setSaving] = useState(false);
+
+  const selectedFault = selectedFaultId
+    ? (faults ?? []).find((f) => f.id === selectedFaultId) ?? null
+    : null;
 
   const list = faults ?? [];
 
@@ -170,7 +187,7 @@ export default function AdminFaults() {
       toast.success(
         `Fault on ${machineLabel(selectedFault)} marked resolved.`
       );
-      setSelectedFault(null);
+      setSelectedFaultId(null);
       setResolutionText("");
       setRepairCost("");
       reload();
@@ -317,7 +334,7 @@ export default function AdminFaults() {
                           <PixelButton
                             size="sm"
                             onClick={() => {
-                              setSelectedFault(fault);
+                              setSelectedFaultId(fault.id);
                               setResolutionText(fault.resolution || "");
                               setRepairCost(
                                 fault.actualCost != null
@@ -399,7 +416,7 @@ export default function AdminFaults() {
 
       <Dialog
         open={selectedFault !== null}
-        onOpenChange={(open) => !open && setSelectedFault(null)}
+        onOpenChange={(open) => !open && setSelectedFaultId(null)}
       >
         <DialogContent className="border-2 border-teal-900/30 shadow-pixel-lg dark:border-teal-100/25">
           <DialogHeader>
@@ -439,7 +456,7 @@ export default function AdminFaults() {
               <PixelButton
                 type="button"
                 variant="outline"
-                onClick={() => setSelectedFault(null)}
+                onClick={() => setSelectedFaultId(null)}
               >
                 Cancel
               </PixelButton>

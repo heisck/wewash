@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, LogOut, PanelLeft, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePersistedState, useRouteScrollMemory } from "@/hooks/use-persisted-state";
 import { BlockyText, FONT5 } from "./blocky-text";
 import { PixelIconButton } from "./pixel-ui";
 
@@ -40,8 +41,14 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = React.useState(false);
+  const [collapsed, setCollapsed] = usePersistedState(
+    `shell:${portal}:collapsed`,
+    false
+  );
   const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  // Restore scroll when returning to a page via the nav
+  useRouteScrollMemory(pathname);
 
   React.useEffect(() => {
     setMobileOpen(false);
@@ -67,6 +74,7 @@ export function DashboardShell({
           <Link
             key={item.href}
             href={item.href}
+            scroll={false}
             title={item.name}
             className={cn(
               "group flex items-center gap-3 border-2 px-2.5 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all duration-100",

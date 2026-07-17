@@ -10,6 +10,7 @@ import {
   PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel, PixelSelect,
   PixelTd, PixelTh,
 } from "@/components/pixel/pixel-ui";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { api, useApi, ApiError } from "@/lib/api/client";
 import type { PaymentDTO, StudentDTO } from "@/lib/types/client";
 
@@ -27,7 +28,7 @@ function paymentBalance(p: PaymentDTO) {
 export default function AdminPaymentsPage() {
   const { data: payments, reload } = useApi<PaymentDTO[]>("/api/v1/payments?limit=100");
   const { data: students } = useApi<StudentDTO[]>("/api/v1/students?limit=100");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = usePersistedState("admin/payments:recordOpen", false);
 
   const list = payments ?? [];
   const totals = useMemo(() => {

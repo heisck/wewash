@@ -13,6 +13,7 @@ import {
   PixelLabel,
   PixelSelect,
 } from "@/components/pixel/pixel-ui";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { api, useApi, ApiError } from "@/lib/api/client";
 import type {
   MachineDTO,
@@ -86,14 +87,32 @@ function RotationInner() {
 
   const settingsHandoff = toHHmm(contact?.rotationHandoffTime, "08:00");
 
-  const [machineId, setMachineId] = useState(preset);
-  const [groupId, setGroupId] = useState("");
+  const [machineId, setMachineId] = usePersistedState(
+    "admin/rotation:machineId",
+    preset
+  );
+  const [groupId, setGroupId] = usePersistedState(
+    "admin/rotation:groupId",
+    ""
+  );
   /** roomId → one or more washing days */
-  const [roomDays, setRoomDays] = useState<Record<string, Day[]>>({});
+  const [roomDays, setRoomDays] = usePersistedState<Record<string, Day[]>>(
+    "admin/rotation:roomDays",
+    {}
+  );
   /** Optional per-room handoff (HH:MM); empty = use global */
-  const [roomTimes, setRoomTimes] = useState<Record<string, string>>({});
-  const [handoff, setHandoff] = useState(settingsHandoff);
-  const [useSettingsHandoff, setUseSettingsHandoff] = useState(true);
+  const [roomTimes, setRoomTimes] = usePersistedState<Record<string, string>>(
+    "admin/rotation:roomTimes",
+    {}
+  );
+  const [handoff, setHandoff] = usePersistedState(
+    "admin/rotation:handoff",
+    settingsHandoff
+  );
+  const [useSettingsHandoff, setUseSettingsHandoff] = usePersistedState(
+    "admin/rotation:useSettingsHandoff",
+    true
+  );
   const [saving, setSaving] = useState(false);
 
   const list = machines ?? [];

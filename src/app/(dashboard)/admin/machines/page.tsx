@@ -10,6 +10,7 @@ import {
 import {
   PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel, PixelSelect,
 } from "@/components/pixel/pixel-ui";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { api, useApi, ApiError } from "@/lib/api/client";
 import type { MachineDTO, HallDTO } from "@/lib/types/client";
 
@@ -24,11 +25,21 @@ const statusTone: Record<string, "green" | "amber" | "red" | "slate"> = {
 export default function AdminMachines() {
   const { data: machines, reload } = useApi<MachineDTO[]>("/api/v1/machines?limit=100");
   const { data: halls } = useApi<HallDTO[]>("/api/v1/halls?limit=100");
-  const [addOpen, setAddOpen] = useState(false);
-  const [configFor, setConfigFor] = useState<MachineDTO | null>(null);
-  const [qrFor, setQrFor] = useState<MachineDTO | null>(null);
+  const [addOpen, setAddOpen] = usePersistedState("admin/machines:addOpen", false);
+  const [configForId, setConfigForId] = usePersistedState<string | null>(
+    "admin/machines:configForId",
+    null
+  );
+  const [qrForId, setQrForId] = usePersistedState<string | null>(
+    "admin/machines:qrForId",
+    null
+  );
 
   const list = machines ?? [];
+  const configFor = configForId
+    ? list.find((m) => m.id === configForId) ?? null
+    : null;
+  const qrFor = qrForId ? list.find((m) => m.id === qrForId) ?? null : null;
 
   return (
     <div className="space-y-8">
@@ -84,7 +95,7 @@ export default function AdminMachines() {
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2.5 border-t-2 border-teal-900/10 pt-4 dark:border-teal-100/10">
-                  <PixelButton size="sm" variant="ghost" onClick={() => setQrFor(m)}>
+                  <PixelButton size="sm" variant="ghost" onClick={() => setQrForId(m.id)}>
                     <QrCode className="h-3 w-3" /> QR code
                   </PixelButton>
                   <Link href={`/admin/rotation?machine=${m.id}`}>
@@ -92,7 +103,7 @@ export default function AdminMachines() {
                       <CalendarDays className="h-3 w-3" /> Schedule
                     </PixelButton>
                   </Link>
-                  <PixelButton size="sm" variant="outline" onClick={() => setConfigFor(m)}>
+                  <PixelButton size="sm" variant="outline" onClick={() => setConfigForId(m.id)}>
                     <Settings className="h-3 w-3" /> Status
                   </PixelButton>
                 </div>
@@ -103,8 +114,8 @@ export default function AdminMachines() {
       )}
 
       <AddMachineDialog open={addOpen} onClose={() => setAddOpen(false)} halls={halls ?? []} onDone={reload} />
-      <ConfigDialog machine={configFor} onClose={() => setConfigFor(null)} onDone={reload} />
-      <QrDialog machine={qrFor} onClose={() => setQrFor(null)} />
+      <ConfigDialog machine={configFor} onClose={() => setConfigForId(null)} onDone={reload} />
+      <QrDialog machine={qrFor} onClose={() => setQrForId(null)} />
     </div>
   );
 }

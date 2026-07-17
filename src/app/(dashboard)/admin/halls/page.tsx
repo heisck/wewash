@@ -9,16 +9,29 @@ import {
 import {
   PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelLabel,
 } from "@/components/pixel/pixel-ui";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { api, useApi, ApiError } from "@/lib/api/client";
 import type { HallDTO, RoomDTO } from "@/lib/types/client";
 
 export default function AdminHallsPage() {
   const { data: halls, reload } = useApi<HallDTO[]>("/api/v1/halls?limit=100");
-  const [hallOpen, setHallOpen] = useState(false);
-  const [roomFor, setRoomFor] = useState<HallDTO | null>(null);
-  const [selected, setSelected] = useState<HallDTO | null>(null);
+  const [hallOpen, setHallOpen] = usePersistedState("admin/halls:hallOpen", false);
+  const [roomForId, setRoomForId] = usePersistedState<string | null>(
+    "admin/halls:roomForId",
+    null
+  );
+  const [selectedId, setSelectedId] = usePersistedState<string | null>(
+    "admin/halls:selectedId",
+    null
+  );
 
   const list = halls ?? [];
+  const selected = selectedId
+    ? list.find((h) => h.id === selectedId) ?? null
+    : null;
+  const roomFor = roomForId
+    ? list.find((h) => h.id === roomForId) ?? null
+    : null;
   const { data: rooms, reload: reloadRooms } = useApi<RoomDTO[]>(
     selected ? `/api/v1/halls/${selected.id}/rooms` : null
   );
@@ -43,7 +56,7 @@ export default function AdminHallsPage() {
               <button
                 key={h.id}
                 type="button"
-                onClick={() => setSelected(h)}
+                onClick={() => setSelectedId(h.id)}
                 className={`w-full border-2 p-4 text-left transition-colors ${
                   selected?.id === h.id
                     ? "border-teal-700 bg-teal-600/10 dark:border-teal-300"
@@ -81,7 +94,7 @@ export default function AdminHallsPage() {
                     </p>
                     <p className="text-lg font-black">{selected.name}</p>
                   </div>
-                  <PixelButton size="sm" onClick={() => setRoomFor(selected)}>
+                  <PixelButton size="sm" onClick={() => selected && setRoomForId(selected.id)}>
                     <Plus className="h-3 w-3" /> Add room
                   </PixelButton>
                 </div>
@@ -135,10 +148,10 @@ export default function AdminHallsPage() {
       />
       <AddRoomDialog
         hall={roomFor}
-        onClose={() => setRoomFor(null)}
+        onClose={() => setRoomForId(null)}
         onDone={() => {
           reloadRooms();
-          setRoomFor(null);
+          setRoomForId(null);
         }}
       />
     </div>
