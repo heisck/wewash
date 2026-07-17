@@ -56,12 +56,34 @@ class ArkeselClient {
             headers: {
               "api-key": this.config.apiKey,
               "Content-Type": "application/json",
+              Accept: "application/json",
             },
             ...(body ? { body: JSON.stringify(body) } : {}),
             signal: controller.signal,
           });
 
-          const data = await response.json();
+          const raw = await response.text();
+          const contentType = response.headers.get("content-type") || "";
+
+          // Wrong path (e.g. /api/v2/otp/send) returns Laravel HTML 404 — not JSON
+          if (!contentType.includes("application/json") && raw.trimStart().startsWith("<")) {
+            throw new ArkeselApiError(
+              `Arkesel returned HTML instead of JSON for ${endpoint} (HTTP ${response.status}). Check endpoint URL.`,
+              response.status,
+              endpoint
+            );
+          }
+
+          let data: unknown;
+          try {
+            data = raw ? JSON.parse(raw) : {};
+          } catch {
+            throw new ArkeselApiError(
+              `Invalid JSON from Arkesel ${endpoint}: ${raw.slice(0, 120)}`,
+              response.status,
+              endpoint
+            );
+          }
 
           if (!response.ok) {
             const errorData = data as ArkeselErrorResponse;

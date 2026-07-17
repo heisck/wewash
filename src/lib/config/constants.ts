@@ -38,11 +38,12 @@ export const RETRY_POLICY = {
 export const ARKESEL = {
   API_VERSION: "v2",
   ENDPOINTS: {
+    // SMS uses v2; OTP is under /api/otp/* (not /api/v2/otp/* — that 404s HTML)
     SEND_SMS: "/api/v2/sms/send",
     SEND_TEMPLATE_SMS: "/api/v2/sms/template/send",
-    SEND_OTP: "/api/v2/otp/send",
-    VERIFY_OTP: "/api/v2/otp/verify",
-    CHECK_BALANCE: "/api/v2/sms/balance",
+    SEND_OTP: "/api/otp/generate",
+    VERIFY_OTP: "/api/otp/verify",
+    CHECK_BALANCE: "/api/v2/clients/balance-details",
   },
   OTP: {
     LENGTH: 6,

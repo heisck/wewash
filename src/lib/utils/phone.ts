@@ -56,3 +56,12 @@ export function toLocalFormat(phone: string): string {
   const normalized = normalizeGhanaPhone(phone);
   return "0" + normalized.slice(4);
 }
+
+/**
+ * Format for Arkesel SMS/OTP APIs: country code without "+" (e.g. "233241234567").
+ * Docs/live API expect this shape; "+233..." can fail validation.
+ */
+export function toArkeselPhone(phone: string): string {
+  const normalized = normalizeGhanaPhone(phone);
+  return normalized.replace(/^\+/, "");
+}
