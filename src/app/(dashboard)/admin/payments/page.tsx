@@ -78,19 +78,23 @@ export default function AdminPaymentsPage() {
                 <PixelTh className="pt-4">Due</PixelTh>
                 <PixelTh className="pt-4">Paid</PixelTh>
                 <PixelTh className="pt-4">Status</PixelTh>
+                <PixelTh className="pt-4">Proof</PixelTh>
                 <PixelTh className="pt-4">Reference</PixelTh>
                 <PixelTh className="pt-4">Date</PixelTh>
+                <PixelTh className="pt-4">Actions</PixelTh>
               </tr>
             </thead>
             <tbody className="divide-y-2 divide-teal-900/5">
               {list.map((p) => {
                 const b = paymentBalance(p);
                 const statusLabel =
-                  b.outstanding <= 0 && b.paid > 0
-                    ? "PAID"
-                    : b.paid > 0 && b.outstanding > 0
-                      ? "PARTIAL"
-                      : p.status;
+                  p.status === "PENDING" && b.paid > 0
+                    ? "AWAITING"
+                    : b.outstanding <= 0 && b.paid > 0
+                      ? "PAID"
+                      : b.paid > 0 && b.outstanding > 0
+                        ? "PARTIAL"
+                        : p.status;
                 return (
                   <tr key={p.id}>
                     <PixelTd>
@@ -106,13 +110,27 @@ export default function AdminPaymentsPage() {
                         tone={
                           statusLabel === "PAID" || statusLabel === "COMPLETED"
                             ? "green"
-                            : statusLabel === "PARTIAL"
+                            : statusLabel === "PARTIAL" || statusLabel === "AWAITING"
                               ? "amber"
                               : "slate"
                         }
                       >
                         {statusLabel}
                       </PixelBadge>
+                    </PixelTd>
+                    <PixelTd className="text-[10px]">
+                      {p.receiptUrl ? (
+                        <a
+                          href={p.receiptUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-black uppercase tracking-wider text-teal-700 underline dark:text-teal-300"
+                        >
+                          Screenshot
+                        </a>
+                      ) : (
+                        "—"
+                      )}
                     </PixelTd>
                     <PixelTd className="text-[10px]">
                       {p.reference || p.momoTransactionId || "—"}
@@ -122,7 +140,53 @@ export default function AdminPaymentsPage() {
                         ? new Date(p.paidAt).toLocaleDateString()
                         : p.dueDate
                           ? `Due ${new Date(p.dueDate).toLocaleDateString()}`
-                          : "—"}
+                          : new Date(p.createdAt).toLocaleDateString()}
+                    </PixelTd>
+                    <PixelTd>
+                      {p.status === "PENDING" ? (
+                        <div className="flex flex-wrap gap-1">
+                          <PixelButton
+                            size="sm"
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await api.patch(`/api/v1/payments/${p.id}`, {
+                                  status: "COMPLETED",
+                                  amountPaid: Number(p.amountPaid ?? p.amount),
+                                });
+                                toast.success("Payment confirmed.");
+                                reload();
+                              } catch (err) {
+                                toast.error((err as ApiError).message || "Confirm failed");
+                              }
+                            }}
+                          >
+                            Confirm
+                          </PixelButton>
+                          <PixelButton
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await api.patch(`/api/v1/payments/${p.id}`, {
+                                  status: "FAILED",
+                                });
+                                toast.message("Marked not verified.");
+                                reload();
+                              } catch (err) {
+                                toast.error((err as ApiError).message || "Update failed");
+                              }
+                            }}
+                          >
+                            Reject
+                          </PixelButton>
+                        </div>
+                      ) : (
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-teal-900/30">
+                          —
+                        </span>
+                      )}
                     </PixelTd>
                   </tr>
                 );

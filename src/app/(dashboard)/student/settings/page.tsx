@@ -8,13 +8,14 @@ import {
 import {
   PageTitle, PixelBadge, PixelButton, PixelCard, PixelInput, PixelToggle,
 } from "@/components/pixel/pixel-ui";
+import { usePush } from "@/hooks/use-push";
 
 export default function SettingsPage() {
   const [smsNotif, setSmsNotif] = useState(true);
   const [emailNotif, setEmailNotif] = useState(false);
-  const [pushNotif, setPushNotif] = useState(true);
   const [notifOpen, setNotifOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  const { supported, subscribed, busy, subscribe, unsubscribe } = usePush();
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 pb-12">
@@ -125,9 +126,25 @@ export default function SettingsPage() {
             <ToggleRow
               icon={Bell}
               title="Push Notifications"
-              desc="Browser push alerts for real-time updates"
-              enabled={pushNotif}
-              onToggle={() => setPushNotif(!pushNotif)}
+              desc={
+                !supported
+                  ? "Install the PWA / use a supported browser with VAPID configured"
+                  : subscribed
+                    ? "On — early rotation alerts (paid students). SMS still fires ~2h before."
+                    : "Off — enable for free app alerts when your machine day is coming"
+              }
+              enabled={subscribed}
+              onToggle={async () => {
+                if (busy) return;
+                if (subscribed) {
+                  await unsubscribe();
+                  toast.success("Push notifications off on this device.");
+                } else {
+                  const ok = await subscribe();
+                  if (ok) toast.success("Push notifications enabled.");
+                  else toast.error("Could not enable push. Allow notifications when prompted.");
+                }
+              }}
             />
           </div>
         </div>
@@ -273,7 +290,7 @@ function ToggleRow({
   title: string;
   desc: string;
   enabled: boolean;
-  onToggle: () => void;
+  onToggle: () => void | Promise<void>;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 border-2 border-teal-900/15 bg-teal-600/5 p-4 dark:border-teal-100/15 dark:bg-teal-400/5">

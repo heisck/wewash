@@ -119,25 +119,52 @@ export class NotificationService {
     return this.notify({ userIds: admins.map((a) => a.id), title, body, url });
   }
 
-  /** Send a student a welcome SMS with the app link + scan hint. */
-  async sendWelcome(phone: string, firstName: string) {
+  /**
+   * Welcome SMS with the public app URL (from NEXT_PUBLIC_APP_URL — set per
+   * environment so prod never sends a localhost link) plus sign-in credentials.
+   */
+  async sendWelcome(input: {
+    phone: string;
+    firstName: string;
+    email?: string | null;
+    temporaryPassword?: string | null;
+  }) {
     const link = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-    const message = `Hi ${firstName}, welcome to WeWash! Manage your washing rotation and scan your machine at ${link}. - WeWash`;
+    const loginUrl = `${link}/login`;
+    const lines = [
+      `Hi ${input.firstName}, welcome to WeWash!`,
+      `App: ${loginUrl}`,
+    ];
+    if (input.email) {
+      lines.push(`Email: ${input.email}`);
+    }
+    if (input.temporaryPassword) {
+      lines.push(`Temp password: ${input.temporaryPassword}`);
+      lines.push("Change your password after first sign-in.");
+    } else if (input.email) {
+      lines.push("Use Forgot password on the login page if needed.");
+    }
+    lines.push("Scan your machine QR in the app. - WeWash");
+    const message = lines.join("\n");
+
     try {
-      await sendSMS([phone], message);
+      await sendSMS([input.phone], message);
       await prisma.notificationLog.create({
         data: {
           type: "SMS",
-          recipient: phone,
+          recipient: input.phone,
           subject: "Welcome to WeWash",
-          message,
+          // Never store the plaintext password in the delivery log.
+          message: input.temporaryPassword
+            ? message.replace(input.temporaryPassword, "[redacted]")
+            : message,
           status: "SENT",
           provider: "arkesel",
           sentAt: new Date(),
         },
       });
     } catch (err) {
-      notifLogger.warn({ err, phone }, "Welcome SMS failed");
+      notifLogger.warn({ err, phone: input.phone }, "Welcome SMS failed");
     }
   }
 }

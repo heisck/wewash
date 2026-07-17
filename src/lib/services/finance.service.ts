@@ -26,6 +26,13 @@ export class FinanceService {
     this.machineRepo = new MachineRepository();
   }
 
+  private async getStudentIdForUser(user: User | null): Promise<string | undefined> {
+    if (!user || user.role !== "STUDENT") return undefined;
+    const student = await this.studentRepo.findByUserId(user.id);
+    if (!student) throw AppError.notFound("Student profile not found for user", user.id);
+    return student.id;
+  }
+
   // ─── Contract Operations ─────────────────────────────────────
 
   async getContracts(
@@ -151,7 +158,12 @@ export class FinanceService {
     const { skip, take } = toSkipTake(pagination);
     const where: Prisma.PaymentWhereInput = {};
 
-    if (filters.studentId) where.studentId = filters.studentId;
+    const ownStudentId = await this.getStudentIdForUser(user);
+    if (ownStudentId) {
+      where.studentId = ownStudentId;
+    } else if (filters.studentId) {
+      where.studentId = filters.studentId;
+    }
     if (filters.contractId) where.contractId = filters.contractId;
     if (filters.status) where.status = filters.status;
     if (filters.method) where.method = filters.method;
@@ -174,14 +186,44 @@ export class FinanceService {
     requirePermission(user, "payments", "read");
     const payment = await this.repo.findPaymentById(id);
     if (!payment) throw AppError.notFound("Payment", id);
+
+    const ownStudentId = await this.getStudentIdForUser(user);
+    if (ownStudentId && payment.studentId !== ownStudentId) {
+      throw AppError.forbidden("You can only view your own payments.");
+    }
     return payment;
   }
 
+  /**
+   * Admin records a payment, or a student submits off-app proof (screenshot +
+   * amount) as PENDING for admin confirmation.
+   */
   async createPayment(user: User | null, data: CreatePaymentInput): Promise<Payment> {
     requirePermission(user, "payments", "create");
 
-    const student = await this.studentRepo.findById(data.studentId);
-    if (!student) throw AppError.notFound("Student", data.studentId);
+    const isStudent = user?.role === "STUDENT";
+    let studentId: string;
+
+    if (isStudent) {
+      const ownId = await this.getStudentIdForUser(user);
+      if (!ownId) throw AppError.forbidden("Student profile required");
+      studentId = ownId;
+      if (!data.receiptUrl) {
+        throw AppError.badRequest("Attach a payment screenshot (receipt URL) before submitting.");
+      }
+      const claimed = data.amountPaid ?? data.amount ?? 0;
+      if (claimed <= 0) {
+        throw AppError.badRequest("Enter the amount you paid.");
+      }
+    } else {
+      if (!data.studentId) {
+        throw AppError.badRequest("Student is required");
+      }
+      studentId = data.studentId;
+    }
+
+    const student = await this.studentRepo.findById(studentId);
+    if (!student) throw AppError.notFound("Student", studentId);
 
     if (data.contractId) {
       const contract = await this.repo.findContractById(data.contractId);
@@ -194,21 +236,26 @@ export class FinanceService {
     }
 
     const amountPaid = data.amountPaid ?? data.amount ?? 0;
-    const amountDue = data.amountDue ?? amountPaid;
+    const amountDue =
+      data.amountDue ??
+      (isStudent ? Number(student.weeklyAmount ?? amountPaid) : amountPaid);
     if (!amountPaid && !amountDue) {
       throw AppError.badRequest("Amount due or amount paid is required");
     }
 
-    // Derive status: paid / partial / pending
-    let status = data.status ?? "COMPLETED";
-    if (!data.status) {
+    // Students always land PENDING until admin confirms.
+    // Admins: derive paid / partial / completed unless status is set.
+    let status = data.status ?? (isStudent ? "PENDING" : "COMPLETED");
+    if (isStudent) {
+      status = "PENDING";
+    } else if (!data.status) {
       if (amountPaid <= 0) status = "PENDING";
-      else if (amountDue > 0 && amountPaid < amountDue) status = "PENDING"; // partial — still outstanding
+      else if (amountDue > 0 && amountPaid < amountDue) status = "PENDING";
       else status = "COMPLETED";
     }
 
     const payment = await this.repo.createPayment({
-      student: { connect: { id: data.studentId } },
+      student: { connect: { id: studentId } },
       contract: data.contractId ? { connect: { id: data.contractId } } : undefined,
       amount: new Prisma.Decimal(amountPaid || amountDue),
       amountDue: new Prisma.Decimal(amountDue),
@@ -217,13 +264,19 @@ export class FinanceService {
       method: data.method,
       reference: data.reference,
       momoTransactionId: data.momoTransactionId,
-      description: data.description,
+      description:
+        data.description ??
+        (isStudent
+          ? `Off-app payment proof from ${student.firstName} ${student.lastName}`
+          : undefined),
       dueDate: data.dueDate,
-      paidAt: data.paidAt || (amountPaid > 0 ? new Date() : undefined),
+      paidAt: isStudent
+        ? undefined
+        : data.paidAt || (status === "COMPLETED" && amountPaid > 0 ? new Date() : undefined),
       receiptUrl: data.receiptUrl || undefined,
       notes: data.notes,
       status,
-      recordedBy: user?.id ?? null,
+      recordedBy: isStudent ? null : (user?.id ?? null),
     });
 
     await auditLogService.log({
@@ -234,7 +287,13 @@ export class FinanceService {
       newValues: payment,
     });
 
-    if (status === "COMPLETED" || amountPaid > 0) {
+    if (isStudent && status === "PENDING") {
+      void notificationService.notifyAdmins(
+        "Payment proof submitted",
+        `${student.firstName} ${student.lastName} claims GHS ${amountPaid}. Review screenshot and confirm.`,
+        "/admin/payments"
+      );
+    } else if (!isStudent && status === "COMPLETED") {
       void notificationService.notify({
         userIds: student.userId ? [student.userId] : [],
         phones: [student.phone],
@@ -253,6 +312,7 @@ export class FinanceService {
     const payment = await this.repo.findPaymentById(id);
     if (!payment) throw AppError.notFound("Payment", id);
 
+    const wasCompleted = payment.status === "COMPLETED";
     const updateData: Prisma.PaymentUpdateInput = {};
     if (data.status) updateData.status = data.status;
     if (data.amount !== undefined) updateData.amount = new Prisma.Decimal(data.amount);
@@ -270,6 +330,14 @@ export class FinanceService {
     if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl || null;
     if (data.notes) updateData.notes = data.notes;
 
+    // Confirming a pending proof: stamp paidAt if missing
+    if (data.status === "COMPLETED" && !wasCompleted && !data.paidAt && !payment.paidAt) {
+      updateData.paidAt = new Date();
+    }
+    if (data.status === "COMPLETED" && user?.id) {
+      updateData.recordedBy = user.id;
+    }
+
     const updated = await this.repo.updatePayment(id, updateData);
 
     await auditLogService.log({
@@ -280,6 +348,32 @@ export class FinanceService {
       oldValues: payment,
       newValues: updated,
     });
+
+    if (data.status === "COMPLETED" && !wasCompleted) {
+      const student = await this.studentRepo.findById(payment.studentId);
+      if (student) {
+        const paid = Number(updated.amountPaid ?? updated.amount ?? 0);
+        void notificationService.notify({
+          userIds: student.userId ? [student.userId] : [],
+          phones: [student.phone],
+          title: "Payment confirmed",
+          body: `Your payment of GHS ${paid} was verified. Thank you! - WeWash`,
+          url: "/student/billing",
+        });
+      }
+    } else if (data.status === "FAILED" || data.status === "CANCELLED") {
+      const student = await this.studentRepo.findById(payment.studentId);
+      if (student) {
+        void notificationService.notify({
+          userIds: student.userId ? [student.userId] : [],
+          phones: [student.phone],
+          title: "Payment not verified",
+          body: `We could not verify your recent payment proof. Please contact WeWash admin or resubmit. - WeWash`,
+          url: "/student/billing",
+        });
+      }
+    }
+
     return updated;
   }
 

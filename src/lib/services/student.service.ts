@@ -160,6 +160,9 @@ export class StudentService {
       }
     }
 
+    /** Plaintext temp password — only kept long enough for the welcome SMS. */
+    let plainPassword: string | undefined;
+
     if (data.email) {
       const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
       if (existingUser) {
@@ -174,13 +177,14 @@ export class StudentService {
             role: "STUDENT",
           },
         });
+        // Existing account — do not invent a new password; student can use forgot-password.
       } else {
         // Create credential account without signing the admin out of their session.
         const { hashPassword } = await import("better-auth/crypto");
-        const password =
+        plainPassword =
           temporaryPassword ||
           `Ww-${data.studentId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "Student"}1!`;
-        const hashed = await hashPassword(password);
+        const hashed = await hashPassword(plainPassword);
         const createdUser = await prisma.user.create({
           data: {
             name: `${data.firstName} ${data.lastName}`,
@@ -226,7 +230,12 @@ export class StudentService {
     });
 
     if (student.phone) {
-      void notificationService.sendWelcome(student.phone, student.firstName);
+      void notificationService.sendWelcome({
+        phone: student.phone,
+        firstName: student.firstName,
+        email: student.email,
+        temporaryPassword: plainPassword,
+      });
     }
 
     return student;

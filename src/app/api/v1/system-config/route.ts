@@ -18,12 +18,21 @@ const contactSchema = z.object({
     .optional(),
 });
 
-/** GET /api/v1/system-config?group=contact — admin reads a config group. */
+/**
+ * GET /api/v1/system-config?group=contact — admin reads settings.
+ * `group=contact` (default) returns the shaped ContactConfig used by the
+ * settings UI (includes payments/schedule keys). Other groups return raw rows.
+ */
 async function getHandler(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) throw AppError.unauthorized();
     const group = req.nextUrl.searchParams.get("group") ?? "contact";
+    if (group === "contact" || group === "all") {
+      // Full shaped config (contact + weekly fee + handoff), not raw row list
+      const contact = await systemConfigService.getContactAdmin(session.user);
+      return successResponse(contact);
+    }
     const config = await systemConfigService.getConfig(session.user, group);
     return successResponse(config);
   } catch (error) {

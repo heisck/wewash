@@ -26,14 +26,15 @@ export type UpdateContractInput = z.infer<typeof updateContractSchema>;
 
 const moneySchema = z.coerce.number().min(0).max(1_000_000);
 
-export const createPaymentSchema = z.object({
-  studentId: idSchema,
+const paymentFields = {
+  // Optional for students — server forces their own studentId.
+  studentId: idSchema.optional(),
   contractId: idSchema.optional(),
   amount: moneySchema.optional(), // amount paid (legacy)
   amountDue: moneySchema.optional(),
   amountPaid: moneySchema.optional(),
   currency: z.string().default("GHS"),
-  method: z.enum(["CASH", "MOBILE_MONEY", "BANK_TRANSFER", "CARD", "OTHER"]),
+  method: z.enum(["CASH", "MOBILE_MONEY", "BANK_TRANSFER", "CARD", "OTHER"]).default("OTHER"),
   reference: z.string().optional(),
   momoTransactionId: z.string().max(100).optional(),
   description: z.string().optional(),
@@ -44,11 +45,28 @@ export const createPaymentSchema = z.object({
   status: z
     .enum(["PENDING", "COMPLETED", "FAILED", "REFUNDED", "CANCELLED"])
     .optional(),
+} as const;
+
+/** Base object (no refinements) so `.partial()` works for updates. */
+const paymentObjectSchema = z.object(paymentFields);
+
+/**
+ * Create requires at least one amount field. Keep this refine only on the
+ * create schema — Zod forbids `.partial()` on refined schemas.
+ */
+export const createPaymentSchema = paymentObjectSchema.superRefine((val, ctx) => {
+  if (val.amountPaid == null && val.amount == null && val.amountDue == null) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Amount is required",
+      path: ["amountPaid"],
+    });
+  }
 });
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
-export const updatePaymentSchema = createPaymentSchema.partial().extend({
+export const updatePaymentSchema = paymentObjectSchema.partial().extend({
   status: z.enum(["PENDING", "COMPLETED", "FAILED", "REFUNDED", "CANCELLED"]).optional(),
 });
 

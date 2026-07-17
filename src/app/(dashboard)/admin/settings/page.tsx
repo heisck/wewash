@@ -10,6 +10,7 @@ import { api, useApi, ApiError } from "@/lib/api/client";
 import type { ContactConfig } from "@/lib/types/client";
 
 export default function AdminSettingsPage() {
+  // Shaped ContactConfig (not raw SystemConfig rows)
   const { data, reload } = useApi<ContactConfig>("/api/v1/system-config?group=contact");
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
@@ -19,45 +20,36 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || Array.isArray(data)) return;
     setWhatsapp(data.whatsapp ?? "");
     setEmail(data.email ?? "");
     setPhone(data.phone ?? "");
     setWeekly(
-      data.defaultWeeklyAmount != null ? String(data.defaultWeeklyAmount) : ""
+      data.defaultWeeklyAmount != null && data.defaultWeeklyAmount !== undefined
+        ? String(data.defaultWeeklyAmount)
+        : ""
     );
     setHandoff(data.rotationHandoffTime || "08:00");
   }, [data]);
-
-  // Also load public contact (getConfig returns rows; updateContact returns ContactConfig).
-  // Prefer the dedicated public-shaped payload by reusing update response after first load.
-  useEffect(() => {
-    void (async () => {
-      try {
-        // Public contact endpoint path used elsewhere; fall back if shape differs
-        const contact = await api.get<ContactConfig>("/api/v1/public/contact").catch(() => null);
-        if (contact) {
-          setWhatsapp(contact.whatsapp ?? "");
-          setEmail(contact.email ?? "");
-          setPhone(contact.phone ?? "");
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, []);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.put("/api/v1/system-config", {
+      const saved = await api.put<ContactConfig>("/api/v1/system-config", {
         whatsapp,
         email,
         phone,
-        defaultWeeklyAmount: defaultWeeklyAmount ? Number(defaultWeeklyAmount) : 0,
+        defaultWeeklyAmount: defaultWeeklyAmount === "" ? 0 : Number(defaultWeeklyAmount),
         rotationHandoffTime,
       });
+      setWhatsapp(saved.whatsapp ?? "");
+      setEmail(saved.email ?? "");
+      setPhone(saved.phone ?? "");
+      setWeekly(
+        saved.defaultWeeklyAmount != null ? String(saved.defaultWeeklyAmount) : ""
+      );
+      setHandoff(saved.rotationHandoffTime || "08:00");
       toast.success("Settings saved.");
       reload();
     } catch (err) {

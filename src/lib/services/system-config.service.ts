@@ -48,7 +48,13 @@ export class SystemConfigService {
     };
   }
 
-  /** Admin: read a config group (defaults to contact). */
+  /** Admin: shaped contact + billing + schedule defaults (for Settings UI). */
+  async getContactAdmin(user: User | null): Promise<ContactConfig> {
+    requirePermission(user, "system_config", "read");
+    return this.getContact();
+  }
+
+  /** Admin: read raw rows for a config group. */
   async getConfig(user: User | null, group = "contact") {
     requirePermission(user, "system_config", "read");
     const rows = await prisma.systemConfig.findMany({ where: { group } });

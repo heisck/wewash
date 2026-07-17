@@ -58,7 +58,8 @@ export const rolePermissions: Permissions = {
     halls: ["read"],
     rooms: ["read"],
     contracts: ["read"],
-    payments: ["read"],
+    // Students submit off-app payment proof (PENDING); admins confirm.
+    payments: ["create", "read"],
     faults: ["create", "read", "update"], // Can create and update own faults
     schedules: ["read"],
     wash_sessions: ["create", "read"],    // Can scan (create) and read own sessions
