@@ -9,6 +9,7 @@ import {
   PixelBadge,
   PixelButton,
   PixelCard,
+  PixelInput,
   PixelLabel,
   PixelSelect,
 } from "@/components/pixel/pixel-ui";
@@ -30,6 +31,16 @@ const DAYS = [
   "SUNDAY",
 ] as const;
 
+const DAY_SHORT: Record<(typeof DAYS)[number], string> = {
+  MONDAY: "Mon",
+  TUESDAY: "Tue",
+  WEDNESDAY: "Wed",
+  THURSDAY: "Thu",
+  FRIDAY: "Fri",
+  SATURDAY: "Sat",
+  SUNDAY: "Sun",
+};
+
 type Day = (typeof DAYS)[number];
 
 type RoomRow = {
@@ -38,6 +49,16 @@ type RoomRow = {
   studentCount: number;
   students: { firstName: string; lastName: string }[];
 };
+
+/** Normalize HTML time input / API values to HH:MM */
+function toHHmm(value: string | undefined | null, fallback = "08:00"): string {
+  if (!value) return fallback;
+  const m = value.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return fallback;
+  const h = Math.min(23, Math.max(0, parseInt(m[1]!, 10)));
+  const min = Math.min(59, Math.max(0, parseInt(m[2]!, 10)));
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
 
 export default function AdminRotationPage() {
   return (
@@ -63,11 +84,14 @@ function RotationInner() {
   );
   const { data: contact } = useApi<ContactConfig>("/api/v1/public/contact");
 
-  const settingsHandoff = contact?.rotationHandoffTime || "08:00";
+  const settingsHandoff = toHHmm(contact?.rotationHandoffTime, "08:00");
 
   const [machineId, setMachineId] = useState(preset);
   const [groupId, setGroupId] = useState("");
-  const [roomDay, setRoomDay] = useState<Record<string, Day | "">>({});
+  /** roomId → one or more washing days */
+  const [roomDays, setRoomDays] = useState<Record<string, Day[]>>({});
+  /** Optional per-room handoff (HH:MM); empty = use global */
+  const [roomTimes, setRoomTimes] = useState<Record<string, string>>({});
   const [handoff, setHandoff] = useState(settingsHandoff);
   const [useSettingsHandoff, setUseSettingsHandoff] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,84 +121,126 @@ function RotationInner() {
     if (preset) setMachineId(preset);
   }, [preset]);
 
-  // Load default handoff from settings when available
   useEffect(() => {
     if (useSettingsHandoff && settingsHandoff) {
       setHandoff(settingsHandoff);
     }
   }, [settingsHandoff, useSettingsHandoff]);
 
-  // When machine schedules load, map existing room→day; prefer group rooms if selected
+  // Hydrate from existing machine schedules
   useEffect(() => {
     const schedules = details?.schedules ?? [];
     if (!schedules.length) return;
-    const map: Record<string, Day | ""> = {};
+
+    const daysMap: Record<string, Day[]> = {};
+    const timesMap: Record<string, string> = {};
     for (const s of schedules) {
-      if (DAYS.includes(s.dayOfWeek as Day)) {
-        map[s.roomId] = s.dayOfWeek as Day;
-      }
+      if (!DAYS.includes(s.dayOfWeek as Day)) continue;
+      const day = s.dayOfWeek as Day;
+      daysMap[s.roomId] = [...(daysMap[s.roomId] ?? []), day];
+      if (s.startTime) timesMap[s.roomId] = toHHmm(s.startTime);
     }
-    setRoomDay((prev) => ({ ...map, ...prev }));
+    for (const id of Object.keys(daysMap)) {
+      daysMap[id] = (daysMap[id] ?? []).sort(
+        (a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)
+      );
+    }
+    setRoomDays((prev) => ({ ...daysMap, ...prev }));
+    setRoomTimes((prev) => ({ ...timesMap, ...prev }));
+
     if (schedules[0]?.startTime && !useSettingsHandoff) {
-      setHandoff(schedules[0].startTime);
+      setHandoff(toHHmm(schedules[0].startTime));
     }
   }, [details, useSettingsHandoff]);
 
-  // Reset day picks when group changes (keep days that still match room ids)
+  // Keep only rooms that belong to the selected group
   useEffect(() => {
     if (!groupId) {
-      setRoomDay({});
+      setRoomDays({});
+      setRoomTimes({});
       return;
     }
-    setRoomDay((prev) => {
-      const next: Record<string, Day | ""> = {};
+    setRoomDays((prev) => {
+      const next: Record<string, Day[]> = {};
       for (const r of rooms) {
-        next[r.id] = prev[r.id] ?? "";
+        next[r.id] = prev[r.id] ?? [];
+      }
+      return next;
+    });
+    setRoomTimes((prev) => {
+      const next: Record<string, string> = {};
+      for (const r of rooms) {
+        if (prev[r.id]) next[r.id] = prev[r.id]!;
       }
       return next;
     });
   }, [groupId, rooms]);
 
+  const globalHandoff = useSettingsHandoff ? settingsHandoff : toHHmm(handoff);
+
+  /** Which room currently owns each weekday (one machine = one room per day) */
   const dayUsedBy = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [roomId, day] of Object.entries(roomDay)) {
-      if (day) map.set(day, roomId);
+    const map = new Map<Day, string>();
+    for (const [roomId, days] of Object.entries(roomDays)) {
+      for (const d of days) map.set(d, roomId);
     }
     return map;
-  }, [roomDay]);
+  }, [roomDays]);
 
-  const assignDay = (roomId: string, day: Day | "") => {
-    setRoomDay((prev) => {
-      const next = { ...prev };
-      // Clear this day from any other room
-      if (day) {
-        for (const [rid, d] of Object.entries(next)) {
-          if (d === day && rid !== roomId) next[rid] = "";
+  const toggleDay = (roomId: string, day: Day) => {
+    setRoomDays((prev) => {
+      const current = new Set(prev[roomId] ?? []);
+      if (current.has(day)) {
+        current.delete(day);
+      } else {
+        // Steal this day from any other room (machine can only be one place per day)
+        const next: Record<string, Day[]> = { ...prev };
+        for (const [rid, days] of Object.entries(next)) {
+          if (rid !== roomId && days.includes(day)) {
+            next[rid] = days.filter((d) => d !== day);
+          }
         }
+        current.add(day);
+        next[roomId] = Array.from(current).sort(
+          (a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)
+        );
+        return next;
       }
-      next[roomId] = day;
-      return next;
+      return {
+        ...prev,
+        [roomId]: Array.from(current).sort(
+          (a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)
+        ),
+      };
     });
   };
 
-  const effectiveHandoff = useSettingsHandoff ? settingsHandoff : handoff;
-
   const slots = useMemo(() => {
-    return Object.entries(roomDay)
-      .filter(([, day]) => !!day)
-      .map(([roomId, day]) => ({
-        roomId,
-        dayOfWeek: day as Day,
-        orderIndex: DAYS.indexOf(day as Day),
-      }))
-      .sort((a, b) => a.orderIndex - b.orderIndex);
-  }, [roomDay]);
+    const out: {
+      roomId: string;
+      dayOfWeek: Day;
+      startTime: string;
+      orderIndex: number;
+    }[] = [];
+    for (const [roomId, days] of Object.entries(roomDays)) {
+      const time = toHHmm(roomTimes[roomId] || globalHandoff);
+      for (const day of days) {
+        out.push({
+          roomId,
+          dayOfWeek: day,
+          startTime: time,
+          orderIndex: DAYS.indexOf(day),
+        });
+      }
+    }
+    return out.sort((a, b) => a.orderIndex - b.orderIndex);
+  }, [roomDays, roomTimes, globalHandoff]);
 
   const save = async () => {
     if (!machineId) return toast.error("Select a machine first.");
     if (!groupId) return toast.error("Select a student group first.");
     if (slots.length === 0)
-      return toast.error("Assign at least one room to a day of the week.");
+      return toast.error("Pick at least one day for a room.");
     if (rooms.length === 0)
       return toast.error(
         "This group has no rooms yet. Register students with room numbers first."
@@ -186,13 +252,15 @@ function RotationInner() {
         schedules: slots.map((s, i) => ({
           roomId: s.roomId,
           dayOfWeek: s.dayOfWeek,
-          startTime: effectiveHandoff,
-          endTime: effectiveHandoff,
+          startTime: s.startTime,
+          endTime: s.startTime,
           orderIndex: i,
         })),
       });
       toast.success(
-        `Rotation saved — ${slots.length} room(s), handoff ${effectiveHandoff} daily.`
+        `Rotation saved — ${slots.length} slot(s) across ${
+          Object.values(roomDays).filter((d) => d.length).length
+        } room(s).`
       );
       reload();
       reloadGroup();
@@ -210,7 +278,7 @@ function RotationInner() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageTitle
           text="ROTATION"
-          sub="Machine + student group → assign washing day per room"
+          sub="Machine + group → any days per room, any handoff time"
         />
         <PixelButton
           onClick={save}
@@ -259,14 +327,14 @@ function RotationInner() {
           </PixelSelect>
           {selectedGroup && (
             <p className="text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
-              Days are assigned by room (shared room = one day for everyone in
-              it).
+              Tick one or more days per room. A day can only belong to one room
+              (machine is only in one place at a time).
             </p>
           )}
         </div>
 
         <div className="space-y-2">
-          <PixelLabel htmlFor="handoff">3. Handoff time (all rooms)</PixelLabel>
+          <PixelLabel htmlFor="handoff">3. Default handoff time</PixelLabel>
           <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-teal-900/60 dark:text-teal-100/60">
               <input
@@ -278,31 +346,18 @@ function RotationInner() {
               Use Settings default ({settingsHandoff})
             </label>
             {!useSettingsHandoff && (
-              <PixelSelect
+              <PixelInput
                 id="handoff"
-                value={handoff}
-                onChange={(e) => setHandoff(e.target.value)}
-              >
-                {[
-                  "06:00",
-                  "07:00",
-                  "08:00",
-                  "09:00",
-                  "10:00",
-                  "12:00",
-                  "14:00",
-                  "16:00",
-                  "18:00",
-                ].map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </PixelSelect>
+                type="time"
+                step={60}
+                value={toHHmm(handoff)}
+                onChange={(e) => setHandoff(toHHmm(e.target.value))}
+                className="max-w-[10rem] font-mono tabular-nums"
+              />
             )}
             <p className="text-[10px] font-semibold text-teal-900/45 dark:text-teal-100/45">
-              One handoff time for every room — window is ~24h until the next
-              room&apos;s day at the same time.
+              Global default for rooms without their own time. Each room can
+              override with its own clock below.
             </p>
           </div>
         </div>
@@ -311,24 +366,26 @@ function RotationInner() {
       {!machineId || !groupId ? (
         <PixelCard className="flex items-center justify-center py-16 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
           <CalendarDays className="mr-2 h-4 w-4 shrink-0" />
-          Select a machine and a student group to assign washing days by room.
+          Select a machine and a student group to assign days & times by room.
         </PixelCard>
       ) : rooms.length === 0 ? (
         <PixelCard className="flex flex-col items-center justify-center gap-2 py-16 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
           <p>No rooms in this group yet.</p>
           <p className="max-w-sm font-semibold normal-case tracking-normal text-teal-900/50 dark:text-teal-100/50">
             Register students into the group with typed room numbers first
-            (Students page). Rooms are created from those numbers.
+            (Students page).
           </p>
         </PixelCard>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {rooms.map((room) => {
-              const day = roomDay[room.id] ?? "";
+              const days = roomDays[room.id] ?? [];
+              const roomTime = roomTimes[room.id] ?? "";
+              const effectiveRoomTime = toHHmm(roomTime || globalHandoff);
               return (
                 <PixelCard key={room.id} className="space-y-3 p-4">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-[11px] font-black uppercase tracking-widest">
                         Room {room.number}
@@ -343,39 +400,76 @@ function RotationInner() {
                           : ""}
                       </p>
                     </div>
-                    {day ? (
-                      <PixelBadge tone="teal">{day.slice(0, 3)}</PixelBadge>
+                    {days.length > 0 ? (
+                      <PixelBadge tone="teal">
+                        {days.map((d) => DAY_SHORT[d]).join(" · ")}
+                      </PixelBadge>
                     ) : (
-                      <PixelBadge tone="slate">Unset</PixelBadge>
+                      <PixelBadge tone="slate">No days</PixelBadge>
                     )}
                   </div>
+
                   <div className="space-y-2">
-                    <PixelLabel htmlFor={`day-${room.id}`}>
-                      Washing day
-                    </PixelLabel>
-                    <PixelSelect
-                      id={`day-${room.id}`}
-                      value={day}
-                      onChange={(e) =>
-                        assignDay(room.id, e.target.value as Day | "")
-                      }
-                    >
-                      <option value="">— no day —</option>
+                    <PixelLabel>Washing days (pick any)</PixelLabel>
+                    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
                       {DAYS.map((d) => {
                         const takenBy = dayUsedBy.get(d);
-                        const disabled = !!takenBy && takenBy !== room.id;
+                        const takenElsewhere =
+                          !!takenBy && takenBy !== room.id;
+                        const selected = days.includes(d);
                         return (
-                          <option key={d} value={d} disabled={disabled}>
-                            {d}
-                            {disabled ? " (taken)" : ""}
-                          </option>
+                          <button
+                            key={d}
+                            type="button"
+                            disabled={takenElsewhere}
+                            title={
+                              takenElsewhere
+                                ? "Already assigned to another room"
+                                : DAY_SHORT[d]
+                            }
+                            onClick={() => toggleDay(room.id, d)}
+                            className={`border-2 px-1 py-2 text-[9px] font-black uppercase tracking-wide transition-colors ${
+                              selected
+                                ? "border-teal-900 bg-teal-900 text-white dark:border-teal-100 dark:bg-teal-100 dark:text-teal-950"
+                                : takenElsewhere
+                                  ? "cursor-not-allowed border-teal-900/10 text-teal-900/25 dark:border-teal-100/10 dark:text-teal-100/25"
+                                  : "border-teal-900/20 text-teal-900/70 hover:border-teal-700 dark:border-teal-100/20 dark:text-teal-100/70"
+                            }`}
+                          >
+                            {DAY_SHORT[d]}
+                          </button>
                         );
                       })}
-                    </PixelSelect>
+                    </div>
                   </div>
-                  {day && (
+
+                  <div className="space-y-2">
+                    <PixelLabel htmlFor={`time-${room.id}`}>
+                      Handoff time (this room)
+                    </PixelLabel>
+                    <PixelInput
+                      id={`time-${room.id}`}
+                      type="time"
+                      step={60}
+                      value={toHHmm(roomTime || globalHandoff)}
+                      onChange={(e) =>
+                        setRoomTimes((prev) => ({
+                          ...prev,
+                          [room.id]: toHHmm(e.target.value, globalHandoff),
+                        }))
+                      }
+                      className="max-w-[10rem] font-mono tabular-nums"
+                    />
+                    <p className="text-[9px] font-semibold text-teal-900/40 dark:text-teal-100/40">
+                      Defaults to {globalHandoff}; change anytime with the
+                      clock.
+                    </p>
+                  </div>
+
+                  {days.length > 0 && (
                     <p className="border-t-2 border-teal-900/10 pt-2 text-[10px] font-bold uppercase tracking-widest text-teal-900/50 dark:border-teal-100/10 dark:text-teal-100/50">
-                      Handoff {effectiveHandoff} · ~24h for this room
+                      {days.length} day{days.length === 1 ? "" : "s"} · handoff{" "}
+                      {effectiveRoomTime}
                     </p>
                   )}
                 </PixelCard>
@@ -386,15 +480,15 @@ function RotationInner() {
           {slots.length > 0 && (
             <PixelCard className="p-5">
               <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-teal-900/40">
-                Week order ({slots.length} room
-                {slots.length === 1 ? "" : "s"} · handoff {effectiveHandoff})
+                Week schedule ({slots.length} slot
+                {slots.length === 1 ? "" : "s"})
               </p>
               <ol className="space-y-2">
                 {slots.map((s, i) => {
                   const r = rooms.find((x) => x.id === s.roomId);
                   return (
                     <li
-                      key={`${s.dayOfWeek}-${s.roomId}`}
+                      key={`${s.dayOfWeek}-${s.roomId}-${s.startTime}`}
                       className="flex items-center justify-between border-2 border-teal-900/10 px-3 py-2 text-[11px] font-black dark:border-teal-100/10"
                     >
                       <span>
@@ -403,8 +497,8 @@ function RotationInner() {
                           ? ` (${r.studentCount} student${r.studentCount === 1 ? "" : "s"})`
                           : ""}
                       </span>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-teal-900/40">
-                        {effectiveHandoff}
+                      <span className="font-mono text-[10px] font-bold tabular-nums text-teal-900/50 dark:text-teal-100/50">
+                        {s.startTime}
                       </span>
                     </li>
                   );

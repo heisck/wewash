@@ -31,19 +31,26 @@ async function postHandler(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const input = notifySchema.parse(body);
 
-    // Resolve target students → their auth user IDs.
+    // Resolve targets. SMS uses student.phone even if no login user is linked;
+    // push needs userId.
     const where =
       input.target === "all"
-        ? { isActive: true, deletedAt: null, userId: { not: null } }
-        : { id: { in: input.studentIds ?? [] }, deletedAt: null, userId: { not: null } };
+        ? { isActive: true, deletedAt: null }
+        : { id: { in: input.studentIds ?? [] }, deletedAt: null };
 
     const students = await prisma.student.findMany({
       where,
-      select: { userId: true, phone: true },
+      select: { id: true, userId: true, phone: true, firstName: true },
     });
 
-    const userIds = students.map((s) => s.userId!).filter(Boolean);
-    const studentPhones = students.map((s) => s.phone);
+    if (input.target === "selected" && (input.studentIds?.length ?? 0) > 0 && students.length === 0) {
+      throw AppError.notFound("Student", input.studentIds?.[0]);
+    }
+
+    const userIds = students
+      .map((s) => s.userId)
+      .filter((id): id is string => Boolean(id));
+    const studentPhones = students.map((s) => s.phone).filter(Boolean);
 
     const result = await notificationService.notify({
       userIds,
@@ -53,7 +60,17 @@ async function postHandler(req: NextRequest) {
       channels: input.channels,
     });
 
-    return successResponse({ recipients: userIds.length, ...result });
+    if (result.sms === 0 && result.push === 0 && studentPhones.length === 0) {
+      throw AppError.badRequest(
+        "No phone number on file for this student — SMS cannot be sent."
+      );
+    }
+
+    return successResponse({
+      recipients: students.length,
+      phones: studentPhones.length,
+      ...result,
+    });
   } catch (error) {
     return handleApiError(error);
   }

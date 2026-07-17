@@ -14,6 +14,7 @@ import {
   ChevronRight,
   UsersRound,
   Plus,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -60,6 +61,8 @@ export default function AdminStudents() {
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [payFor, setPayFor] = useState<StudentDTO | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  /** Student id while SMS reminder is in flight */
+  const [remindingId, setRemindingId] = useState<string | null>(null);
 
   const list = students ?? [];
   const groupList = groups ?? [];
@@ -83,16 +86,42 @@ export default function AdminStudents() {
   };
 
   const sendReminder = async (s: StudentDTO) => {
+    if (remindingId) return;
+    if (!s.phone?.trim()) {
+      toast.error(`No phone number for ${s.firstName} — cannot send SMS.`);
+      return;
+    }
+    setRemindingId(s.id);
+    const toastId = toast.loading(`Sending SMS to ${s.firstName}…`);
     try {
-      await api.post("/api/v1/notifications", {
+      const result = await api.post<{
+        sms?: number;
+        push?: number;
+        recipients?: number;
+      }>("/api/v1/notifications", {
         target: "selected",
         studentIds: [s.id],
         title: "Payment reminder",
         body: `Hi ${s.firstName}, a friendly reminder about your WeWash weekly dues. Thank you!`,
+        channels: ["SMS"],
       });
-      toast.success(`Reminder sent to ${s.firstName}.`);
+      if ((result?.sms ?? 0) > 0) {
+        toast.success(`SMS sent to ${s.firstName} (${s.phone}).`, {
+          id: toastId,
+        });
+      } else {
+        toast.warning(
+          `Request finished but no SMS was delivered to ${s.firstName}. Check phone / Arkesel sandbox.`,
+          { id: toastId }
+        );
+      }
     } catch (e) {
-      toast.error((e as ApiError).message || "Could not send reminder.");
+      toast.error(
+        (e as ApiError).message || `Could not send SMS to ${s.firstName}.`,
+        { id: toastId }
+      );
+    } finally {
+      setRemindingId(null);
     }
   };
 
@@ -214,6 +243,8 @@ export default function AdminStudents() {
                         onPay={() => setPayFor(s)}
                         onRemind={() => void sendReminder(s)}
                         onRemove={() => void removeStudent(s)}
+                        reminding={remindingId === s.id}
+                        remindDisabled={!!remindingId}
                       />
                     );
                   })
@@ -333,6 +364,8 @@ function StudentRows({
   onPay,
   onRemind,
   onRemove,
+  reminding,
+  remindDisabled,
 }: {
   student: StudentDTO;
   open: boolean;
@@ -342,6 +375,8 @@ function StudentRows({
   onPay: () => void;
   onRemind: () => void;
   onRemove: () => void;
+  reminding: boolean;
+  remindDisabled: boolean;
 }) {
   return (
     <>
@@ -383,8 +418,24 @@ function StudentRows({
             <PixelButton size="sm" variant="outline" onClick={onPay}>
               <CreditCard className="h-3 w-3" /> Pay
             </PixelButton>
-            <PixelButton size="sm" variant="ghost" onClick={onRemind}>
-              <Send className="h-3.5 w-3.5" />
+            <PixelButton
+              size="sm"
+              variant="ghost"
+              onClick={onRemind}
+              disabled={remindDisabled}
+              aria-busy={reminding}
+              aria-label={
+                reminding
+                  ? `Sending SMS to ${s.firstName}`
+                  : `Send SMS reminder to ${s.firstName}`
+              }
+              title={reminding ? "Sending SMS…" : "Send SMS reminder"}
+            >
+              {reminding ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
             </PixelButton>
             <PixelButton size="sm" variant="ghost" onClick={onRemove}>
               <Trash2 className="h-3.5 w-3.5" />
@@ -950,19 +1001,33 @@ function BroadcastDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim() || !body.trim()) {
+      toast.error("Title and message are required.");
+      return;
+    }
     setSaving(true);
+    const toastId = toast.loading("Sending broadcast SMS…");
     try {
-      await api.post("/api/v1/notifications", {
-        target: "all",
-        title,
-        body,
-      });
-      toast.success("Broadcast queued.");
+      const result = await api.post<{ sms?: number; recipients?: number }>(
+        "/api/v1/notifications",
+        {
+          target: "all",
+          title: title.trim(),
+          body: body.trim(),
+          channels: ["SMS"],
+        }
+      );
+      toast.success(
+        `Broadcast sent${result?.sms != null ? ` (${result.sms} SMS)` : ""}.`,
+        { id: toastId }
+      );
       onClose();
       setTitle("");
       setBody("");
     } catch (err) {
-      toast.error((err as ApiError).message || "Could not send.");
+      toast.error((err as ApiError).message || "Could not send broadcast.", {
+        id: toastId,
+      });
     } finally {
       setSaving(false);
     }
@@ -996,11 +1061,22 @@ function BroadcastDialog({
             />
           </div>
           <DialogFooter className="gap-2">
-            <PixelButton type="button" variant="outline" onClick={onClose}>
+            <PixelButton
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={saving}
+            >
               Cancel
             </PixelButton>
-            <PixelButton type="submit" disabled={saving}>
-              {saving ? "Sending..." : "Send"}
+            <PixelButton type="submit" disabled={saving} aria-busy={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending…
+                </>
+              ) : (
+                "Send SMS"
+              )}
             </PixelButton>
           </DialogFooter>
         </form>
