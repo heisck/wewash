@@ -18,8 +18,15 @@ export function proxy(req: NextRequest) {
   const isAdmin = pathname.startsWith("/admin");
   const loginPath = isAdmin ? "/admin/login" : "/login";
 
-  // Don't loop on the login pages themselves.
-  if (pathname === loginPath || pathname === "/admin/login") return NextResponse.next();
+  // Public auth pages (no session required).
+  if (
+    pathname === loginPath ||
+    pathname === "/admin/login" ||
+    pathname === "/admin/forgot-password" ||
+    pathname === "/forgot-password"
+  ) {
+    return NextResponse.next();
+  }
 
   const url = req.nextUrl.clone();
   url.pathname = loginPath;

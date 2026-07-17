@@ -125,10 +125,16 @@ export async function verifyOTP(
         return true;
 
       case ARKESEL.STATUS_CODES.OTP_VERIFY_INVALID_CODE:
-        throw new AppError(ErrorCode.OTP_INVALID, "Invalid OTP code");
+        throw new AppError(
+          ErrorCode.OTP_INVALID,
+          "Invalid OTP code. Check the digits and try again."
+        );
 
       case ARKESEL.STATUS_CODES.OTP_VERIFY_EXPIRED:
-        throw new AppError(ErrorCode.OTP_EXPIRED, "OTP code has expired");
+        throw new AppError(
+          ErrorCode.OTP_EXPIRED,
+          "This code has expired. Request a new one."
+        );
 
       case ARKESEL.STATUS_CODES.OTP_VERIFY_INVALID_PHONE:
         throw new AppError(

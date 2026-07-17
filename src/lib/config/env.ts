@@ -42,6 +42,19 @@ const envSchema = z.object({
     .default("true")
     .transform((val) => val === "true"),
 
+  // Email (Gmail SMTP via App Password — used for email OTP / password reset)
+  // Create App Password: Google Account → Security → 2-Step Verification → App passwords
+  SMTP_HOST: z.string().default("smtp.gmail.com"),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((val) => val === "true"),
+  SMTP_USER: z.string().optional().default(""),
+  SMTP_PASS: z.string().optional().default(""),
+  /** e.g. "WeWash <you@gmail.com>" — falls back to SMTP_USER */
+  SMTP_FROM: z.string().optional().default(""),
+
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
   CLOUDINARY_API_KEY: z.string().optional().default(""),

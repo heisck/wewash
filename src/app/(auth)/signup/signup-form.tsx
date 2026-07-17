@@ -6,12 +6,15 @@ import { toast } from "sonner";
 import { GoogleGlyph } from "@/components/pixel/auth-frame";
 import { authClient } from "@/lib/auth/client";
 import { api } from "@/lib/api/client";
+import { getEmailError } from "@/lib/utils/email";
 import { toE164Ghana } from "@/lib/utils/phone-client";
 import {
   PixelButton,
   PixelCard,
+  PixelEmailInput,
   PixelInput,
   PixelLabel,
+  PixelPasswordInput,
   PixelSelect,
 } from "@/components/pixel/pixel-ui";
 
@@ -30,6 +33,7 @@ export function SignupForm() {
   const [studentId, setStudentId] = useState("");
   const [hallId, setHallId] = useState("");
   const [room, setRoom] = useState("");
+  const [forceEmailError, setForceEmailError] = useState(false);
 
   useEffect(() => {
     api
@@ -55,6 +59,10 @@ export function SignupForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (getEmailError(email)) {
+      setForceEmailError(true);
+      return;
+    }
     const e164 = toE164Ghana(phone);
     if (!e164) return toast.error("Enter a valid Ghana phone number.");
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
@@ -62,7 +70,7 @@ export function SignupForm() {
     setIsLoading(true);
     // 1) Create the auth account
     const { error } = await authClient.signUp.email({
-      email,
+      email: email.trim(),
       password,
       name: fullName,
       // additional fields declared on the server
@@ -117,8 +125,8 @@ export function SignupForm() {
         <span className="h-0.5 flex-1 bg-teal-900/15 dark:bg-teal-100/15" />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5 text-left">
-        <div className="space-y-2">
+      <form onSubmit={handleSubmit} className="space-y-4 text-left" noValidate>
+        <div className="space-y-1.5">
           <PixelLabel htmlFor="fullName">Full name</PixelLabel>
           <PixelInput
             id="fullName"
@@ -130,30 +138,32 @@ export function SignupForm() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-start">
+          <div className="space-y-1.5">
             <PixelLabel htmlFor="email">Email</PixelLabel>
-            <PixelInput
+            <PixelEmailInput
               id="email"
-              type="email"
               placeholder="john@uni.edu.gh"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              onChange={setEmail}
+              forceShowError={forceEmailError}
               required
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <PixelLabel htmlFor="password">Password</PixelLabel>
-            <PixelInput
+            <PixelPasswordInput
               id="password"
-              type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
               required
             />
+            {/* Same reserved height as email error slot — keeps the grid even */}
+            <p className="h-4" aria-hidden="true">
+              {"\u00a0"}
+            </p>
           </div>
         </div>
 

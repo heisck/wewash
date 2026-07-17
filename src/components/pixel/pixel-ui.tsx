@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getEmailError } from "@/lib/utils/email";
 import { BlockyText, FONT3, FONT5 } from "./blocky-text";
 
 /* --------------------------------------------------------------------------
@@ -121,6 +123,151 @@ export function PixelInput({
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(pixelInputClass, className)} {...props} />;
+}
+
+/**
+ * Fixed-height error line under a field — reserves space so the layout never
+ * jumps when an error appears or clears after blur.
+ */
+export function PixelInlineError({
+  message,
+  id,
+  className,
+}: {
+  message?: string | null;
+  id?: string;
+  className?: string;
+}) {
+  return (
+    <p
+      id={id}
+      role={message ? "alert" : undefined}
+      aria-live="polite"
+      className={cn(
+        "h-4 truncate text-[10px] font-semibold leading-4 text-rose-600 dark:text-rose-400",
+        className
+      )}
+    >
+      {message || "\u00a0"}
+    </p>
+  );
+}
+
+/**
+ * Password field with show/hide toggle (eye button).
+ * Use anywhere users type a password so they can confirm what they entered.
+ */
+export function PixelPasswordInput({
+  className,
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = React.useState(false);
+
+  return (
+    <div className="relative">
+      <input
+        {...props}
+        type={visible ? "text" : "password"}
+        className={cn(pixelInputClass, "pr-11", className)}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center text-teal-900/55 transition-colors hover:text-teal-800 dark:text-teal-100/55 dark:hover:text-teal-100"
+      >
+        {visible ? (
+          <EyeOff className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+        ) : (
+          <Eye className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+        )}
+      </button>
+    </div>
+  );
+}
+
+type PixelEmailInputProps = Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "type" | "value" | "onChange"
+> & {
+  value: string;
+  onChange: (value: string) => void;
+  /** Called when validity changes (blur / after touch). */
+  onValidityChange?: (valid: boolean) => void;
+  /**
+   * When true, shows the error immediately if invalid (e.g. after submit attempt).
+   * Parent can flip this via a key or by calling validate through onValidityChange.
+   */
+  forceShowError?: boolean;
+};
+
+/**
+ * Email input with on-blur validation and a reserved inline error slot
+ * (no layout shift when the message appears).
+ */
+export function PixelEmailInput({
+  className,
+  value,
+  onChange,
+  onBlur,
+  onValidityChange,
+  forceShowError = false,
+  id,
+  ...props
+}: PixelEmailInputProps) {
+  const [touched, setTouched] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const errorId = id ? `${id}-error` : undefined;
+  const showError = (touched || forceShowError) && !!error;
+
+  const applyValidation = React.useCallback(
+    (next: string) => {
+      const err = getEmailError(next);
+      setError(err);
+      onValidityChange?.(!err);
+      return err;
+    },
+    [onValidityChange]
+  );
+
+  React.useEffect(() => {
+    if (forceShowError) {
+      applyValidation(value);
+    }
+  }, [forceShowError, value, applyValidation]);
+
+  return (
+    <div className="space-y-1.5">
+      <input
+        {...props}
+        id={id}
+        type="email"
+        value={value}
+        autoComplete={props.autoComplete ?? "email"}
+        aria-invalid={showError || undefined}
+        aria-describedby={showError ? errorId : undefined}
+        onChange={(e) => {
+          const next = e.target.value;
+          onChange(next);
+          if (touched || forceShowError) applyValidation(next);
+        }}
+        onBlur={(e) => {
+          setTouched(true);
+          applyValidation(value);
+          onBlur?.(e);
+        }}
+        className={cn(
+          pixelInputClass,
+          showError &&
+            "border-rose-500 focus:border-rose-500 dark:border-rose-400 dark:focus:border-rose-400",
+          className
+        )}
+      />
+      <PixelInlineError id={errorId} message={showError ? error : null} />
+    </div>
+  );
 }
 
 export function PixelTextarea({

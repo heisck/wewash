@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   LayoutDashboard,
@@ -16,9 +16,15 @@ import {
 } from "lucide-react";
 import { AuthFrame, GoogleGlyph } from "@/components/pixel/auth-frame";
 import { DashboardShell } from "@/components/pixel/dashboard-shell";
+import { OtpBoxes } from "@/components/auth/otp-boxes";
+import { AUTH_OTP } from "@/lib/config/constants";
 import { authClient, useSession } from "@/lib/auth/client";
+import { otpErrorMessage } from "@/lib/auth/otp-errors";
+import { getEmailError } from "@/lib/utils/email";
+import { toE164Ghana } from "@/lib/utils/phone-client";
+import { useSecondsCountdown } from "@/hooks/use-seconds-countdown";
 import {
-  PixelButton, PixelCard, PixelInput, PixelLabel,
+  PixelButton, PixelCard, PixelEmailInput, PixelInput, PixelLabel, PixelPasswordInput,
 } from "@/components/pixel/pixel-ui";
 
 const menuItems = [
@@ -38,6 +44,7 @@ type AuthTab = "password" | "otp";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, isPending } = useSession();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -46,6 +53,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [otpSent, setOtpSent] = React.useState(false);
   const [tab, setTab] = React.useState<AuthTab>("password");
   const [isLoading, setIsLoading] = React.useState(false);
+  const [forceEmailError, setForceEmailError] = React.useState(false);
+  const [resendEndsAt, setResendEndsAt] = React.useState<number | null>(null);
+  const [expiresEndsAt, setExpiresEndsAt] = React.useState<number | null>(null);
+
+  const resend = useSecondsCountdown(resendEndsAt);
+  const expires = useSecondsCountdown(expiresEndsAt);
+  const expiryMinutes = Math.ceil(AUTH_OTP.EXPIRES_IN_SECONDS / 60);
+
+  const startOtpTimers = () => {
+    const now = Date.now();
+    setResendEndsAt(now + AUTH_OTP.RESEND_COOLDOWN_SECONDS * 1000);
+    setExpiresEndsAt(now + AUTH_OTP.EXPIRES_IN_SECONDS * 1000);
+  };
 
   const user = session?.user as
     | { name: string; email: string; role?: string }
@@ -62,40 +82,100 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (getEmailError(email)) {
+      setForceEmailError(true);
+      return;
+    }
     setIsLoading(true);
-    const { error } = await authClient.signIn.email({ email, password });
+    const { error } = await authClient.signIn.email({
+      email: email.trim(),
+      password,
+    });
     setIsLoading(false);
     if (error) return toast.error(error.message || "Invalid credentials.");
     toast.success("Welcome back, operator.");
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (resend.active) {
+      toast.error(`Wait ${resend.label} before requesting another code.`);
+      return;
+    }
+    const trimmed = phone.trim();
+    if (!trimmed) {
+      toast.error("Enter your operator phone number.");
+      return;
+    }
+    const phoneNumber = toE164Ghana(trimmed);
+    if (!phoneNumber) {
+      toast.error(
+        "That doesn’t look like a valid Ghana mobile number. Use 0241234567 or +233241234567."
+      );
+      return;
+    }
+    setPhone(phoneNumber);
     setIsLoading(true);
     try {
-      const { error } = await authClient.phoneNumber.sendOtp({ phoneNumber: phone });
+      const { error } = await authClient.phoneNumber.sendOtp({ phoneNumber });
       if (error) {
-        toast.error(error.message || "Could not send OTP.");
+        const msg = (error.message || "").toLowerCase();
+        if (
+          error.code === "INVALID_PHONE_NUMBER" ||
+          msg.includes("not registered") ||
+          msg.includes("invalid phone")
+        ) {
+          toast.error(
+            error.message ||
+              "This phone number is not registered for operator access."
+          );
+        } else {
+          toast.error(error.message || "Could not send OTP.");
+        }
+        // Stay on phone entry — don’t show OTP boxes for a failed send
+        setOtpSent(false);
       } else {
+        setOtp("");
         setOtpSent(true);
-        toast.success("OTP sent. Check your phone.");
+        startOtpTimers();
+        toast.success(
+          `OTP sent. Expires in ${expiryMinutes} minutes. Do not share it.`
+        );
       }
     } catch {
       toast.error("OTP is unavailable. Use email/password or Google.");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (otp.replace(/\D/g, "").length !== AUTH_OTP.LENGTH) {
+      toast.error(`Enter the full ${AUTH_OTP.LENGTH}-digit code.`);
+      return;
+    }
+    if (expires.done && expiresEndsAt != null) {
+      toast.error("This code has expired. Request a new one.");
+      return;
+    }
+    const phoneNumber = toE164Ghana(phone) ?? phone;
     setIsLoading(true);
     try {
       const { error } = await authClient.phoneNumber.verify({
-        phoneNumber: phone,
+        phoneNumber,
         code: otp,
       });
-      if (error) toast.error(error.message || "Invalid code.");
-      else {
+      if (error) {
+        toast.error(otpErrorMessage(error, "Invalid OTP code."));
+        // Keep UI in sync when server says expired
+        if (
+          error.code === "OTP_EXPIRED" ||
+          (error.message ?? "").toLowerCase().includes("expired")
+        ) {
+          setExpiresEndsAt(Date.now());
+        }
+      } else {
         toast.success("Signed in.");
         router.refresh();
       }
@@ -104,6 +184,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     setIsLoading(false);
   };
+
+  // Password recovery is public (no session) but lives under /admin for branding.
+  if (pathname === "/admin/forgot-password") {
+    return <>{children}</>;
+  }
 
   if (isPending) {
     return (
@@ -187,30 +272,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           {tab === "password" ? (
-            <form onSubmit={handleLoginSubmit} className="space-y-5 text-left">
-              <div className="space-y-2">
+            <form onSubmit={handleLoginSubmit} className="space-y-4 text-left" noValidate>
+              <div className="space-y-1.5">
                 <PixelLabel htmlFor="email">Email address</PixelLabel>
-                <PixelInput
+                <PixelEmailInput
                   id="email"
-                  type="email"
                   placeholder="admin@wewash.app"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
+                  onChange={setEmail}
+                  forceShowError={forceEmailError}
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <PixelLabel htmlFor="password">Password</PixelLabel>
-                <PixelInput
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <PixelLabel htmlFor="password">Password</PixelLabel>
+                  <Link
+                    href="/admin/forgot-password"
+                    className="text-[10px] font-black uppercase tracking-widest text-teal-700 hover:underline dark:text-teal-300"
+                  >
+                    Forgot?
+                  </Link>
+                </div>
+                <PixelPasswordInput
                   id="password"
-                  type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
                   required
                 />
+                <p className="h-4" aria-hidden="true">
+                  {"\u00a0"}
+                </p>
               </div>
               <PixelButton type="submit" variant="dark" size="lg" className="w-full" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Enter ops center"}
@@ -218,7 +312,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </form>
           ) : (
             <form
-              onSubmit={otpSent ? handleVerifyOtp : handleSendOtp}
+              onSubmit={otpSent ? handleVerifyOtp : (e) => void handleSendOtp(e)}
               className="space-y-5 text-left"
             >
               <div className="space-y-2">
@@ -230,24 +324,75 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required
+                  disabled={otpSent && resend.active}
                 />
               </div>
               {otpSent && (
-                <div className="space-y-2">
-                  <PixelLabel htmlFor="otp">One-time code</PixelLabel>
-                  <PixelInput
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <PixelLabel htmlFor="otp">One-time code</PixelLabel>
+                    {expiresEndsAt != null && (
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${
+                          expires.done
+                            ? "text-rose-600 dark:text-rose-400"
+                            : "text-teal-700 dark:text-teal-300"
+                        }`}
+                      >
+                        {expires.done ? "Expired" : `Expires ${expires.label}`}
+                      </span>
+                    )}
+                  </div>
+                  <OtpBoxes
                     id="otp"
-                    inputMode="numeric"
-                    placeholder="123456"
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    required
+                    onChange={setOtp}
+                    disabled={isLoading || expires.done}
+                    autoFocus
                   />
+                  <PixelButton
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={isLoading || resend.active}
+                    onClick={() => void handleSendOtp()}
+                  >
+                    {resend.active
+                      ? `Resend in ${resend.label}`
+                      : "Resend code"}
+                  </PixelButton>
                 </div>
               )}
-              <PixelButton type="submit" variant="dark" size="lg" className="w-full" disabled={isLoading}>
-                {isLoading ? "Please wait..." : otpSent ? "Verify OTP" : "Send OTP"}
+              <PixelButton
+                type="submit"
+                variant="dark"
+                size="lg"
+                className="w-full"
+                disabled={
+                  isLoading ||
+                  (!otpSent && resend.active) ||
+                  (otpSent &&
+                    (expires.done ||
+                      otp.replace(/\D/g, "").length !== AUTH_OTP.LENGTH))
+                }
+              >
+                {isLoading
+                  ? "Please wait..."
+                  : otpSent
+                    ? "Verify OTP"
+                    : resend.active
+                      ? `Send in ${resend.label}`
+                      : "Send OTP"}
               </PixelButton>
+              <p className="text-center text-[10px] font-semibold text-teal-900/40 dark:text-teal-100/40">
+                <Link
+                  href="/admin/forgot-password"
+                  className="font-black text-teal-700 underline dark:text-teal-300"
+                >
+                  Reset password with email or phone
+                </Link>
+              </p>
             </form>
           )}
 

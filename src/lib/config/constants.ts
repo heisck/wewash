@@ -23,6 +23,25 @@ export const RATE_LIMITS = {
   UPLOAD: { max: 20, windowMs: 60_000 },    // 20 req/min for file uploads
 } as const;
 
+/**
+ * OTP lifecycle — pro-style defaults (expiry + verify attempts + resend limits).
+ * Aligns with Better Auth plugins + Arkesel OTP expiry (minutes).
+ */
+export const AUTH_OTP = {
+  /** OTP digit length */
+  LENGTH: 6,
+  /** How long a code remains valid */
+  EXPIRES_IN_SECONDS: 30 * 60, // 30 minutes
+  /** Wrong-code tries before the OTP is invalidated */
+  ALLOWED_ATTEMPTS: 3,
+  /** Minimum wait between resend requests for the same target */
+  RESEND_COOLDOWN_SECONDS: 10 * 60, // 10 minutes
+  /** Max OTP send requests per target per hour (cooldown already limits this) */
+  MAX_SENDS_PER_HOUR: 6,
+  /** Better Auth emailOTP path rate limit: 1 send per 10 minutes */
+  EMAIL_RATE_LIMIT: { window: 10 * 60, max: 1 },
+} as const;
+
 // ─── Retry Policy ─────────────────────────────────────────────
 
 export const RETRY_POLICY = {
@@ -47,7 +66,8 @@ export const ARKESEL = {
   },
   OTP: {
     LENGTH: 6,
-    EXPIRY_MINUTES: 5,
+    /** Keep in sync with AUTH_OTP.EXPIRES_IN_SECONDS (minutes) */
+    EXPIRY_MINUTES: 30,
     TYPE: "numeric" as const,
     MEDIUM: "sms" as const,
   },

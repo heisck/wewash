@@ -1,6 +1,6 @@
 import { ARKESEL } from "@/lib/config/constants";
 import { getArkeselClient, ArkeselApiError } from "./client";
-import { normalizeGhanaPhone } from "@/lib/utils/phone";
+import { toArkeselPhone } from "@/lib/utils/phone";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import type {
@@ -29,10 +29,10 @@ export async function sendSMS(
 ): Promise<ArkeselSendSmsResponse> {
   const client = getArkeselClient();
 
-  // Normalize all phone numbers
+  // Arkesel expects country code without "+" (e.g. 233…)
   const normalizedRecipients = recipients.map((phone) => {
     try {
-      return normalizeGhanaPhone(phone);
+      return toArkeselPhone(phone);
     } catch {
       smsLogger.warn({ phone }, "Invalid phone number, skipping");
       return null;
@@ -115,11 +115,11 @@ export async function sendTemplateSMS(
 ): Promise<ArkeselSendTemplateSmsResponse> {
   const client = getArkeselClient();
 
-  // Normalize phone numbers in the recipient data
+  // Normalize phone numbers in the recipient data (Arkesel: 233… no +)
   const normalizedData: Record<string, Record<string, string>> = {};
   for (const [phone, vars] of Object.entries(recipientData)) {
     try {
-      const normalized = normalizeGhanaPhone(phone);
+      const normalized = toArkeselPhone(phone);
       normalizedData[normalized] = vars;
     } catch {
       smsLogger.warn({ phone }, "Invalid phone number in template, skipping");

@@ -1,7 +1,11 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
-import { inferAdditionalFields, phoneNumberClient } from "better-auth/client/plugins";
+import {
+  emailOTPClient,
+  inferAdditionalFields,
+  phoneNumberClient,
+} from "better-auth/client/plugins";
 
 /**
  * Better Auth browser client.
@@ -13,6 +17,7 @@ export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_APP_URL || undefined,
   plugins: [
     phoneNumberClient(),
+    emailOTPClient(),
     inferAdditionalFields({
       user: {
         role: { type: "string" },
