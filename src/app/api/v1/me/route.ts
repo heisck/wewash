@@ -51,6 +51,8 @@ async function getHandler(_req: NextRequest) {
 }
 
 const patchSchema = z.object({
+  /** Admin/operator display name shown in the shell. */
+  name: z.string().min(1).max(120).optional(),
   firstName: z.string().min(1).max(80).optional(),
   lastName: z.string().min(1).max(80).optional(),
   phone: z.string().min(7).max(30).optional(),
@@ -58,7 +60,7 @@ const patchSchema = z.object({
   notifyEmail: z.boolean().optional(),
 });
 
-/** PATCH /api/v1/me — student updates profile + notification prefs. */
+/** PATCH /api/v1/me — profile (name, phone, prefs). Admins and students. */
 async function patchHandler(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });

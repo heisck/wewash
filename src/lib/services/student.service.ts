@@ -80,6 +80,8 @@ export class StudentService {
   async updateMySettings(
     user: User | null,
     data: {
+      /** Full display name (admins / any role). */
+      name?: string;
       firstName?: string;
       lastName?: string;
       phone?: string;
@@ -107,18 +109,31 @@ export class StudentService {
       userUpdate.phoneNumber = data.phone;
     }
 
+    // Explicit full name (admin settings) takes priority.
+    if (data.name !== undefined) {
+      const cleaned = data.name.trim();
+      if (!cleaned) throw AppError.badRequest("Display name cannot be empty.");
+      userUpdate.name = cleaned;
+    }
+
     let firstName = data.firstName;
     let lastName = data.lastName;
     if (student && (firstName !== undefined || lastName !== undefined)) {
       firstName = firstName ?? student.firstName;
       lastName = lastName ?? student.lastName;
-      userUpdate.name = `${firstName} ${lastName}`.trim();
+      // Only overwrite name from first/last if display name wasn't sent.
+      if (data.name === undefined) {
+        userUpdate.name = `${firstName} ${lastName}`.trim();
+      }
       await this.repo.update(student.id, {
         firstName,
         lastName,
         ...(data.phone !== undefined ? { phone: data.phone } : {}),
       });
-    } else if (firstName !== undefined || lastName !== undefined) {
+    } else if (
+      data.name === undefined &&
+      (firstName !== undefined || lastName !== undefined)
+    ) {
       const parts = (user.name || "").split(/\s+/);
       const f = firstName ?? parts[0] ?? "";
       const l = lastName ?? parts.slice(1).join(" ") ?? "";

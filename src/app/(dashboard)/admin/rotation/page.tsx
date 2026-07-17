@@ -146,10 +146,18 @@ function RotationInner() {
     }
   }, [settingsHandoff, useSettingsHandoff]);
 
-  // Hydrate from existing machine schedules
+  // When machine changes, clear draft days then hydrate from that machine's schedule only
   useEffect(() => {
-    const schedules = details?.schedules ?? [];
-    if (!schedules.length) return;
+    if (!machineId) {
+      setRoomDays({});
+      setRoomTimes({});
+      return;
+    }
+    const schedules =
+      (details?.schedules as MachineScheduleDTO[] | undefined) ??
+      (details as { machineSchedules?: MachineScheduleDTO[] } | null)
+        ?.machineSchedules ??
+      [];
 
     const daysMap: Record<string, Day[]> = {};
     const timesMap: Record<string, string> = {};
@@ -164,21 +172,18 @@ function RotationInner() {
         (a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)
       );
     }
-    setRoomDays((prev) => ({ ...daysMap, ...prev }));
-    setRoomTimes((prev) => ({ ...timesMap, ...prev }));
+    // Replace (do not merge stale prev) so used days stay accurate
+    setRoomDays(daysMap);
+    setRoomTimes(timesMap);
 
     if (schedules[0]?.startTime && !useSettingsHandoff) {
       setHandoff(toHHmm(schedules[0].startTime));
     }
-  }, [details, useSettingsHandoff]);
+  }, [machineId, details, useSettingsHandoff]);
 
-  // Keep only rooms that belong to the selected group
+  // Keep only rooms that belong to the selected group (preserve days for those rooms)
   useEffect(() => {
-    if (!groupId) {
-      setRoomDays({});
-      setRoomTimes({});
-      return;
-    }
+    if (!groupId) return;
     setRoomDays((prev) => {
       const next: Record<string, Day[]> = {};
       for (const r of rooms) {
@@ -197,34 +202,58 @@ function RotationInner() {
 
   const globalHandoff = useSettingsHandoff ? settingsHandoff : toHHmm(handoff);
 
-  /** Which room currently owns each weekday (one machine = one room per day) */
-  const dayUsedBy = useMemo(() => {
-    const map = new Map<Day, string>();
+  /**
+   * Day ownership for THIS machine draft: which room holds each weekday.
+   * One machine can only be in one room per day.
+   */
+  const dayUsedByRoom = useMemo(() => {
+    const map = new Map<Day, { roomId: string; roomNumber: string }>();
+    const roomNum = (id: string) =>
+      rooms.find((r) => r.id === id)?.number ?? id.slice(0, 6);
     for (const [roomId, days] of Object.entries(roomDays)) {
-      for (const d of days) map.set(d, roomId);
+      for (const d of days) {
+        map.set(d, { roomId, roomNumber: roomNum(roomId) });
+      }
     }
     return map;
-  }, [roomDays]);
+  }, [roomDays, rooms]);
+
+  /**
+   * Days already taken on OTHER machines for rooms in this group
+   * (DB rule: one room cannot have two machines the same day).
+   */
+  const daysBlockedByOtherMachines = useMemo(() => {
+    const map = new Map<string, Map<Day, string>>(); // roomId → day → machine label
+    const roomIds = new Set(rooms.map((r) => r.id));
+    for (const m of list) {
+      if (!machineId || m.id === machineId) continue;
+      const schedules =
+        m.schedules ??
+        (m as { machineSchedules?: MachineScheduleDTO[] }).machineSchedules ??
+        [];
+      const label = m.code || m.name || m.serialNumber;
+      for (const s of schedules) {
+        if (!roomIds.has(s.roomId)) continue;
+        if (!DAYS.includes(s.dayOfWeek as Day)) continue;
+        const day = s.dayOfWeek as Day;
+        if (!map.has(s.roomId)) map.set(s.roomId, new Map());
+        map.get(s.roomId)!.set(day, label);
+      }
+    }
+    return map;
+  }, [list, machineId, rooms]);
 
   const toggleDay = (roomId: string, day: Day) => {
+    const owner = dayUsedByRoom.get(day);
+    // Already used by another room on this machine — hard block (do not steal)
+    if (owner && owner.roomId !== roomId) return;
+    // Room already has this day on another machine
+    if (daysBlockedByOtherMachines.get(roomId)?.has(day)) return;
+
     setRoomDays((prev) => {
       const current = new Set(prev[roomId] ?? []);
-      if (current.has(day)) {
-        current.delete(day);
-      } else {
-        // Steal this day from any other room (machine can only be one place per day)
-        const next: Record<string, Day[]> = { ...prev };
-        for (const [rid, days] of Object.entries(next)) {
-          if (rid !== roomId && days.includes(day)) {
-            next[rid] = days.filter((d) => d !== day);
-          }
-        }
-        current.add(day);
-        next[roomId] = Array.from(current).sort(
-          (a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)
-        );
-        return next;
-      }
+      if (current.has(day)) current.delete(day);
+      else current.add(day);
       return {
         ...prev,
         [roomId]: Array.from(current).sort(
@@ -346,8 +375,8 @@ function RotationInner() {
           </PixelSelect>
           {selectedGroup && (
             <p className="text-[10px] font-semibold text-teal-900/50 dark:text-teal-100/50">
-              Tick one or more days per room. A day can only belong to one room
-              (machine is only in one place at a time).
+              Tick washing days per room. Days already used (this machine or
+              another machine on that room) are disabled and cannot be clicked.
             </p>
           )}
         </div>
@@ -429,30 +458,42 @@ function RotationInner() {
                   </div>
 
                   <div className="space-y-2">
-                    <PixelLabel>Washing days (pick any)</PixelLabel>
+                    <PixelLabel>Washing days</PixelLabel>
                     <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
                       {DAYS.map((d) => {
-                        const takenBy = dayUsedBy.get(d);
-                        const takenElsewhere =
-                          !!takenBy && takenBy !== room.id;
+                        const owner = dayUsedByRoom.get(d);
+                        const takenByOtherRoom =
+                          !!owner && owner.roomId !== room.id;
+                        const otherMachine =
+                          daysBlockedByOtherMachines.get(room.id)?.get(d) ??
+                          null;
                         const selected = days.includes(d);
+                        const locked = takenByOtherRoom || !!otherMachine;
+                        const title = selected
+                          ? `${DAY_SHORT[d]} — click to remove`
+                          : takenByOtherRoom
+                            ? `${DAY_SHORT[d]} already used by Room ${owner!.roomNumber}`
+                            : otherMachine
+                              ? `${DAY_SHORT[d]} already used by ${otherMachine} for this room`
+                              : `Assign ${DAY_SHORT[d]} to Room ${room.number}`;
                         return (
                           <button
                             key={d}
                             type="button"
-                            disabled={takenElsewhere}
-                            title={
-                              takenElsewhere
-                                ? "Already assigned to another room"
-                                : DAY_SHORT[d]
-                            }
-                            onClick={() => toggleDay(room.id, d)}
+                            disabled={locked}
+                            aria-disabled={locked}
+                            aria-pressed={selected}
+                            title={title}
+                            onClick={() => {
+                              if (locked) return;
+                              toggleDay(room.id, d);
+                            }}
                             className={`border-2 px-1 py-2 text-[9px] font-black uppercase tracking-wide transition-colors ${
                               selected
                                 ? "border-teal-900 bg-teal-900 text-white dark:border-teal-100 dark:bg-teal-100 dark:text-teal-950"
-                                : takenElsewhere
-                                  ? "cursor-not-allowed border-teal-900/10 text-teal-900/25 dark:border-teal-100/10 dark:text-teal-100/25"
-                                  : "border-teal-900/20 text-teal-900/70 hover:border-teal-700 dark:border-teal-100/20 dark:text-teal-100/70"
+                                : locked
+                                  ? "pointer-events-none cursor-not-allowed border-teal-900/10 bg-teal-900/5 text-teal-900/20 line-through opacity-50 dark:border-teal-100/10 dark:bg-teal-100/5 dark:text-teal-100/20"
+                                  : "cursor-pointer border-teal-900/20 text-teal-900/70 hover:border-teal-700 dark:border-teal-100/20 dark:text-teal-100/70"
                             }`}
                           >
                             {DAY_SHORT[d]}
@@ -460,6 +501,9 @@ function RotationInner() {
                         );
                       })}
                     </div>
+                    <p className="text-[8px] font-semibold uppercase tracking-widest text-teal-900/35 dark:text-teal-100/35">
+                      Grey / struck days are already taken
+                    </p>
                   </div>
 
                   <div className="space-y-2">
