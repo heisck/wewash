@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { AuthFrame } from "@/components/pixel/auth-frame";
 import { LoginForm } from "./login-form";
@@ -45,7 +46,15 @@ export default function LoginPage() {
         </>
       }
     >
-      <LoginForm />
+      <Suspense
+        fallback={
+          <div className="p-8 text-center text-[10px] font-black uppercase tracking-widest text-teal-900/40">
+            Loading…
+          </div>
+        }
+      >
+        <LoginForm />
+      </Suspense>
     </AuthFrame>
   );
 }
