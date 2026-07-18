@@ -59,6 +59,24 @@ export class MachineService {
     const { skip, take } = toSkipTake(pagination);
     const where: Prisma.MachineWhereInput = {};
 
+    // Students only see the machine(s) on their room's rotation — not the fleet.
+    if (user?.role === "STUDENT") {
+      const student = await prisma.student.findFirst({
+        where: { userId: user.id, deletedAt: null },
+        select: { roomId: true },
+      });
+      if (!student?.roomId) {
+        return { data: [], total: 0 };
+      }
+      const sched = await prisma.machineSchedule.findMany({
+        where: { roomId: student.roomId, isActive: true },
+        select: { machineId: true },
+      });
+      const ids = [...new Set(sched.map((s) => s.machineId))];
+      if (!ids.length) return { data: [], total: 0 };
+      where.id = { in: ids };
+    }
+
     if (filters.search) {
       where.OR = [
         { serialNumber: { contains: filters.search, mode: "insensitive" } },
@@ -87,7 +105,6 @@ export class MachineService {
     });
 
     // Live location from student QR scan (WashSession), not only the schedule.
-    const { prisma } = await import("@/lib/db/prisma");
     const machineIds = data.map((m) => m.id);
     const activeSessions =
       machineIds.length === 0

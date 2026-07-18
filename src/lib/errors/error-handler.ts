@@ -15,8 +15,14 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   if (error instanceof AppError) {
     if (!error.isOperational) {
       logger.error({ err: error, code: error.code }, "Non-operational error");
+    } else if (error.statusCode >= 500) {
+      logger.error({ code: error.code, message: error.message }, "Operational server error");
     } else {
-      logger.warn({ code: error.code, message: error.message }, "Operational error");
+      // Avoid logging full IDs for not-found noise at warn spam level
+      logger.info(
+        { code: error.code, status: error.statusCode },
+        error.statusCode === 404 ? "Not found" : "Client error"
+      );
     }
 
     return NextResponse.json(

@@ -68,6 +68,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional().default(""),
 
   // Cron (Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`)
+  // Required in production (assertCron rejects if missing when NODE_ENV=production)
   CRON_SECRET: z.string().optional().default(""),
 
   // Contact / WhatsApp (fallback defaults; live values come from SystemConfig)

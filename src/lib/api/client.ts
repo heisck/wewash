@@ -38,19 +38,33 @@ async function request<T>(
   body?: unknown,
   signal?: AbortSignal
 ): Promise<{ data: T; meta?: PaginationMeta }> {
-  const res = await fetch(path, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: "same-origin",
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: "same-origin",
+      signal,
+    });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError(
+      "Network error — check your connection and try again.",
+      "NETWORK_ERROR",
+      0
+    );
+  }
 
   let json: Envelope<T> | null = null;
   try {
+    // 204 No Content
+    if (res.status === 204) {
+      return { data: undefined as T };
+    }
     json = (await res.json()) as Envelope<T>;
   } catch {
-    // 204 or non-JSON
+    // non-JSON body
   }
 
   if (!res.ok || !json || json.success === false) {

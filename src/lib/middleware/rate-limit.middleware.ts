@@ -38,8 +38,9 @@ async function checkRateLimit(
     // Count entries in the current window
     pipeline.zcard(key);
     
-    // Add current request
-    pipeline.zadd(key, now, `${now}-${Math.random()}`);
+    // Add current request (unique member per hit)
+    const member = `${now}-${Math.random().toString(36).slice(2, 10)}`;
+    pipeline.zadd(key, now, member);
     
     // Set TTL on the key
     pipeline.expire(key, windowSeconds);
@@ -51,18 +52,16 @@ async function checkRateLimit(
       return { allowed: true, remaining: config.max, resetAt: 0, retryAfter: 0 };
     }
 
+    // zcard is before zadd → count of prior requests in the window
     const currentCount = (results[1]?.[1] as number) ?? 0;
     const allowed = currentCount < config.max;
-    const remaining = Math.max(0, config.max - currentCount - 1);
+    const remaining = Math.max(0, config.max - currentCount - (allowed ? 1 : 0));
     const resetAt = Math.ceil((now + config.windowMs) / 1000);
     const retryAfter = allowed ? 0 : Math.ceil(config.windowMs / 1000);
 
     if (!allowed) {
-      // Remove the request we just added since it's denied
-      const addedMember = results[2]?.[1];
-      if (addedMember) {
-        await redis.zrem(key, `${now}-${Math.random()}`);
-      }
+      // Drop this denied hit so it doesn't inflate the window further
+      await redis.zrem(key, member).catch(() => {});
     }
 
     return { allowed, remaining, resetAt, retryAfter };

@@ -1,15 +1,14 @@
 import { NextRequest } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth/config";
 import { analyticsService } from "@/lib/services/analytics.service";
 import { successResponse } from "@/lib/utils/api-response";
 import { handleApiError } from "@/lib/errors";
 import { withRateLimit } from "@/lib/middleware/rate-limit.middleware";
+import { requireStaff } from "@/lib/auth/require-auth";
 
-async function getHandler(req: NextRequest) {
+async function getHandler(_req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    const stats = await analyticsService.getDashboardStats(session?.user ?? null);
+    const user = await requireStaff();
+    const stats = await analyticsService.getDashboardStats(user);
     return successResponse(stats);
   } catch (error) {
     return handleApiError(error);
